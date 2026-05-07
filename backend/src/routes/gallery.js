@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { protect } from '../middleware/auth.js';
 import { getGallery, getGalleryItem, deleteGalleryItem } from '../controllers/galleryController.js';
 
 const router = Router();
 
-router.use(authenticate);
+router.use(protect);
 
-router.get('/',     getGallery);
-router.get('/:id',  getGalleryItem);
+router.get('/',       getGallery);
+router.get('/:id',    getGalleryItem);
 router.delete('/:id', deleteGalleryItem);
 
 export default router;

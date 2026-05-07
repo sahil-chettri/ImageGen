@@ -1,113 +1,101 @@
-import bcrypt      from 'bcryptjs';
-import jwt          from 'jsonwebtoken';
-import { v4 as uuid } from 'uuid';
-import { body, validationResult } from 'express-validator';
-import { users }    from '../db.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import pool from '../db.js';
 
-const JWT_SECRET     = process.env.JWT_SECRET     || 'dev_secret';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const signToken = (payload) =>
+  jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  });
 
-function signToken(id) {
-  return jwt.sign({ id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-}
-
-function safeUser(user) {
-  const { password: _, ...rest } = user;
-  return rest;
-}
-
-/* ── Validators ─────────────────────────────────────────────────────────── */
-export const registerValidators = [
-  body('name').trim().notEmpty().withMessage('Name is required'),
-  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-];
-
-export const loginValidators = [
-  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
-  body('password').notEmpty().withMessage('Password is required'),
-];
-
-/* ── Controllers ─────────────────────────────────────────────────────────── */
-export async function register(req, res, next) {
+export const register = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(422).json({ success: false, errors: errors.array() });
-    }
-
     const { name, email, password } = req.body;
 
-    // Check duplicate email
-    const existing = [...users.values()].find(u => u.email === email);
-    if (existing) {
-      return res.status(409).json({ success: false, message: 'Email already registered' });
-    }
+    if (!name || !email || !password)
+      return res.status(400).json({ message: 'name, email and password are required' });
 
-    const hashed = await bcrypt.hash(password, 10);
-    const id     = uuid();
-    const user   = {
-      id,
-      name,
-      email,
-      password: hashed,
-      credits:  20,        // free signup credits
-      plan:     'free',
-      createdAt: new Date().toISOString(),
-    };
+    if (password.length < 6)
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
 
-    users.set(id, user);
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length)
+      return res.status(409).json({ message: 'Email already registered' });
 
-    const token = signToken(id);
-    return res.status(201).json({ success: true, token, user: safeUser(user) });
+    const hash = await bcrypt.hash(password, 12);
+
+    const { rows } = await pool.query(
+      `INSERT INTO users (name, email, password)
+       VALUES ($1, $2, $3)
+       RETURNING id, name, email, credits, created_at`,
+      [name.trim(), email.toLowerCase().trim(), hash]
+    );
+
+    const user  = rows[0];
+    const token = signToken({ id: user.id, role: 'user' });
+
+    res.status(201).json({ token, user });
   } catch (err) {
-    next(err);
+    console.error('register error:', err);
+    res.status(500).json({ message: 'Server error during registration' });
   }
-}
+};
 
-export async function login(req, res, next) {
+export const login = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(422).json({ success: false, errors: errors.array() });
-    }
-
     const { email, password } = req.body;
-    const user = [...users.values()].find(u => u.email === email);
 
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
+    if (!email || !password)
+      return res.status(400).json({ message: 'email and password are required' });
 
+    const { rows } = await pool.query(
+      'SELECT id, name, email, password, credits FROM users WHERE email = $1',
+      [email.toLowerCase().trim()]
+    );
+
+    if (!rows.length)
+      return res.status(401).json({ message: 'Invalid credentials' });
+
+    const user  = rows[0];
     const match = await bcrypt.compare(password, user.password);
-    if (!match) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
+    if (!match)
+      return res.status(401).json({ message: 'Invalid credentials' });
 
-    const token = signToken(user.id);
-    return res.json({ success: true, token, user: safeUser(user) });
+    const token = signToken({ id: user.id, role: 'user' });
+    const { password: _pw, ...safeUser } = user;
+
+    res.json({ token, user: safeUser });
   } catch (err) {
-    next(err);
+    console.error('login error:', err);
+    res.status(500).json({ message: 'Server error during login' });
   }
-}
+};
 
-export function getMe(req, res) {
-  // req.user is already attached by authenticate middleware
-  res.json({ success: true, user: req.user });
-}
-
-export async function updateMe(req, res, next) {
+export const adminLogin = async (req, res) => {
   try {
-    const { name } = req.body;
-    const user = users.get(req.user.id);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    const { email, password } = req.body;
 
-    if (name) user.name = name.trim();
-    users.set(user.id, user);
+    if (email !== process.env.ADMIN_EMAIL || password !== process.env.ADMIN_PASSWORD)
+      return res.status(401).json({ message: 'Invalid admin credentials' });
 
-    const { password: _, ...safe } = user;
-    return res.json({ success: true, user: safe });
+    const token = signToken({ role: 'admin' });
+    res.json({ token, admin: { email, role: 'admin' } });
   } catch (err) {
-    next(err);
+    console.error('adminLogin error:', err);
+    res.status(500).json({ message: 'Server error during admin login' });
   }
-}
+};
+
+export const getMe = async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, name, email, credits, created_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    if (!rows.length)
+      return res.status(404).json({ message: 'User not found' });
+
+    res.json({ user: rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};

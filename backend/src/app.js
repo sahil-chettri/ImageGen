@@ -15,6 +15,7 @@ import galleryRoutes   from './routes/gallery.js';
 import creditsRoutes   from './routes/credits.js';
 import uploadRoutes    from './routes/upload.js';
 import healthRoutes    from './routes/health.js';
+import ragRoutes       from './routes/rag.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,10 +26,23 @@ const app = express();
 ───────────────────────────────────────── */
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:     ["'self'"],
+      imgSrc:         ["'self'", "data:", "blob:", "http://localhost:5000", "http://localhost:5173", "http://localhost:5174"],
+      scriptSrc:      ["'self'"],
+      styleSrc:       ["'self'", "https:", "'unsafe-inline'"],
+      connectSrc:     ["'self'", "http://localhost:5000", "http://localhost:11434"],
+    },
+  },
 }));
 
 app.use(cors({
-  origin:      process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: [
+    process.env.FRONTEND_URL || 'http://localhost:5173',
+    'http://localhost:5173',
+    'http://localhost:5174',
+  ],
   credentials: true,
   methods:     ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -48,6 +62,7 @@ app.use(globalLimiter);
 
 /* ─────────────────────────────────────────
    STATIC FILES
+   Static files served from backend/generated/
 ───────────────────────────────────────── */
 app.use('/uploads',   express.static(path.join(__dirname, '..', 'uploads')));
 app.use('/generated', express.static(path.join(__dirname, '..', 'generated')));
@@ -62,6 +77,7 @@ app.use(`${API}/generate`, generateRoutes);
 app.use(`${API}/gallery`,  galleryRoutes);
 app.use(`${API}/credits`,  creditsRoutes);
 app.use(`${API}/upload`,   uploadRoutes);
+app.use(`${API}/rag`,      ragRoutes);
 
 /* ─────────────────────────────────────────
    ERROR HANDLING

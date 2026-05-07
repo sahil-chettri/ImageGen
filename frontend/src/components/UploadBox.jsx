@@ -52,3 +52,5 @@ function UploadBox({ setImage }) {
 }
 
 export default UploadBox;
+
+

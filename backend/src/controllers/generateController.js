@@ -1,10 +1,10 @@
-import { v4 as uuid }               from 'uuid';
-import { body, validationResult }   from 'express-validator';
-import { users, generations }       from '../db.js';
+import { body, validationResult } from 'express-validator';
+import pool                       from '../db.js';
 import { generateImage, transformImage } from '../services/aiService.js';
 
 const VALID_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:2'];
-const VALID_STYLES = ['Photorealistic', 'Anime', 'Oil Painting', 'Sketch', '3D Render'];
+const VALID_STYLES = ['Photorealistic', 'Anime', 'Oil Painting', 'Oil Paint', 'Sketch', '3D Render', 'Cinematic', 'Neon', 'Watercolor'];
+
 const CREDIT_COST  = 1;
 
 /* ── Validators ─────────────────────────────────────────────────────────── */
@@ -16,21 +16,42 @@ export const textGenValidators = [
 ];
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
-function deductCredits(userId) {
-  const user = users.get(userId);
-  if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
-  if (user.credits < CREDIT_COST) {
+async function deductCredits(userId) {
+  const { rows } = await pool.query(
+    `UPDATE users SET credits = credits - $1
+     WHERE id = $2 AND credits >= $1
+     RETURNING credits`,
+    [CREDIT_COST, userId]
+  );
+
+  if (!rows.length) {
+    const user = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
+    if (!user.rows.length)
+      throw Object.assign(new Error('User not found'), { statusCode: 404 });
     throw Object.assign(new Error('Insufficient credits'), { statusCode: 402 });
   }
-  user.credits -= CREDIT_COST;
-  users.set(userId, user);
-  return user.credits;
+
+  return rows[0].credits;
 }
 
-function saveGeneration(data) {
-  const gen = { id: uuid(), createdAt: new Date().toISOString(), ...data };
-  generations.set(gen.id, gen);
-  return gen;
+async function saveGeneration(data) {
+  const { rows } = await pool.query(
+    `INSERT INTO generations
+       (user_id, type, prompt, negative_prompt, ratio, style, image_url, source_image_url)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     RETURNING *`,
+    [
+      data.userId,
+      data.type,
+      data.prompt,
+      data.negativePrompt  || '',
+      data.ratio           || '1:1',
+      data.style           || 'Photorealistic',
+      data.imageUrl        || null,
+      data.sourceImageUrl  || null,
+    ]
+  );
+  return rows[0];
 }
 
 /* ── Controllers ─────────────────────────────────────────────────────────── */
@@ -39,23 +60,18 @@ function saveGeneration(data) {
 export async function textToImage(req, res, next) {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
+    if (!errors.isEmpty())
       return res.status(422).json({ success: false, errors: errors.array() });
-    }
 
-    const creditsRemaining = deductCredits(req.user.id);
-
+    const creditsRemaining = await deductCredits(req.user.id);
     const { prompt, negativePrompt = '', ratio = '1:1', style = 'Photorealistic' } = req.body;
 
     const result = await generateImage({ prompt, negativePrompt, ratio, style });
 
-    const generation = saveGeneration({
-      userId:   req.user.id,
-      type:     'text-to-image',
-      prompt,
-      negativePrompt,
-      ratio,
-      style,
+    const generation = await saveGeneration({
+      userId: req.user.id,
+      type:   'text-to-image',
+      prompt, negativePrompt, ratio, style,
       ...result,
     });
 
@@ -65,34 +81,23 @@ export async function textToImage(req, res, next) {
   }
 }
 
-/** POST /api/v1/generate/image  (multipart) */
+/** POST /api/v1/generate/image (multipart) */
 export async function imageToImage(req, res, next) {
   try {
-    if (!req.file) {
+    if (!req.file)
       return res.status(400).json({ success: false, message: 'Image file is required' });
-    }
 
-    const creditsRemaining = deductCredits(req.user.id);
+    const creditsRemaining = await deductCredits(req.user.id);
+    const { prompt = 'Transform this image', negativePrompt = '', ratio = '1:1', style = 'Photorealistic' } = req.body;
+    const sourceImageUrl = `/uploads/${req.file.filename}`;
 
-    const {
-      prompt        = 'Transform this image',
-      negativePrompt = '',
-      ratio          = '1:1',
-      style          = 'Photorealistic',
-    } = req.body;
+    const result = await transformImage({ prompt, negativePrompt, ratio, style, uploadedImageUrl: sourceImageUrl });
 
-    const uploadedImageUrl = `/uploads/${req.file.filename}`;
-
-    const result = await transformImage({ prompt, negativePrompt, ratio, style, uploadedImageUrl });
-
-    const generation = saveGeneration({
-      userId:   req.user.id,
-      type:     'image-to-image',
-      prompt,
-      negativePrompt,
-      ratio,
-      style,
-      sourceImageUrl: uploadedImageUrl,
+    const generation = await saveGeneration({
+      userId: req.user.id,
+      type:   'image-to-image',
+      prompt, negativePrompt, ratio, style,
+      sourceImageUrl,
       ...result,
     });
 
@@ -103,10 +108,17 @@ export async function imageToImage(req, res, next) {
 }
 
 /** GET /api/v1/generate/:id */
-export function getGeneration(req, res) {
-  const gen = generations.get(req.params.id);
-  if (!gen || gen.userId !== req.user.id) {
-    return res.status(404).json({ success: false, message: 'Generation not found' });
+export async function getGeneration(req, res) {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM generations WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (!rows.length)
+      return res.status(404).json({ success: false, message: 'Generation not found' });
+
+    res.json({ success: true, generation: rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
   }
-  res.json({ success: true, generation: gen });
 }

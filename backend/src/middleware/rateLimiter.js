@@ -1,4 +1,4 @@
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 
 const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'); // 15 min
 
@@ -18,8 +18,7 @@ export const generateLimiter = rateLimit({
   message: { success: false, message: 'Generation limit reached. Try again in 15 minutes.' },
   standardHeaders: true,
   legacyHeaders:   false,
-  // FIX: must use ipKeyGenerator helper for IPv6 safety
-  keyGenerator: (req) => req.user?.id ?? ipKeyGenerator(req),
+  keyGenerator: (req) => req.user?.id ?? req.ip,
 });
 
 /** Auth endpoint limiter — prevents brute force */

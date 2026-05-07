@@ -1,47 +1,59 @@
-import { generations } from '../db.js';
+import pool from '../db.js';
 
-/** GET /api/v1/gallery */
-export function getGallery(req, res) {
-  const page  = Math.max(1, parseInt(req.query.page  || '1'));
-  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '20')));
-  const type  = req.query.type; // optional filter: 'text-to-image' | 'image-to-image'
+export async function getGallery(req, res) {
+  try {
+    const page  = Math.max(1, parseInt(req.query.page  || '1'));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '20')));
+    const type  = req.query.type;
+    const offset = (page - 1) * limit;
 
-  let items = [...generations.values()]
-    .filter(g => g.userId === req.user.id)
-    .filter(g => type ? g.type === type : true)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const conditions = ['user_id = $1'];
+    const params     = [req.user.id];
 
-  const total = items.length;
-  const start = (page - 1) * limit;
-  items = items.slice(start, start + limit);
+    if (type) {
+      params.push(type);
+      conditions.push(`type = $${params.length}`);
+    }
 
-  res.json({
-    success: true,
-    data: items,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
-  });
+    const where = conditions.join(' AND ');
+
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(
+        `SELECT * FROM generations WHERE ${where} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset]
+      ),
+      pool.query(`SELECT COUNT(*) FROM generations WHERE ${where}`, params),
+    ]);
+
+    const total = parseInt(countResult.rows[0].count);
+    res.json({ success: true, data: dataResult.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 }
 
-/** GET /api/v1/gallery/:id */
-export function getGalleryItem(req, res) {
-  const gen = generations.get(req.params.id);
-  if (!gen || gen.userId !== req.user.id) {
-    return res.status(404).json({ success: false, message: 'Item not found' });
+export async function getGalleryItem(req, res) {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM generations WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Item not found' });
+    res.json({ success: true, generation: rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
   }
-  res.json({ success: true, generation: gen });
 }
 
-/** DELETE /api/v1/gallery/:id */
-export function deleteGalleryItem(req, res) {
-  const gen = generations.get(req.params.id);
-  if (!gen || gen.userId !== req.user.id) {
-    return res.status(404).json({ success: false, message: 'Item not found' });
+export async function deleteGalleryItem(req, res) {
+  try {
+    const { rows } = await pool.query(
+      'DELETE FROM generations WHERE id = $1 AND user_id = $2 RETURNING id',
+      [req.params.id, req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Item not found' });
+    res.json({ success: true, message: 'Generation deleted' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
   }
-  generations.delete(req.params.id);
-  res.json({ success: true, message: 'Generation deleted' });
 }

@@ -1,4 +1,4 @@
-import { users } from '../db.js';
+import pool from '../db.js';
 
 const PLANS = {
   starter:   { credits: 100,  price: 4.99,  label: 'Starter' },
@@ -7,40 +7,54 @@ const PLANS = {
 };
 
 /** GET /api/v1/credits */
-export function getCredits(req, res) {
-  const user = users.get(req.user.id);
-  res.json({ success: true, credits: user?.credits ?? 0, plan: user?.plan ?? 'free' });
+export async function getCredits(req, res) {
+  try {
+    const { rows } = await pool.query(
+      'SELECT credits, plan FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'User not found' });
+    res.json({ success: true, credits: rows[0].credits, plan: rows[0].plan });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 }
 
 /** GET /api/v1/credits/plans */
-export function getPlans(req, res) {
+export function getPlans(_req, res) {
   res.json({ success: true, plans: PLANS });
 }
 
 /** POST /api/v1/credits/purchase */
-export function purchaseCredits(req, res) {
-  const { plan } = req.body;
-  const selected = PLANS[plan];
+export async function purchaseCredits(req, res) {
+  try {
+    const { plan } = req.body;
+    const selected = PLANS[plan];
 
-  if (!selected) {
-    return res.status(400).json({
-      success: false,
-      message: `Invalid plan. Choose one of: ${Object.keys(PLANS).join(', ')}`,
+    if (!selected) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid plan. Choose one of: ${Object.keys(PLANS).join(', ')}`,
+      });
+    }
+
+    // In production: integrate Stripe / payment gateway here before adding credits
+    const { rows } = await pool.query(
+      `UPDATE users SET credits = credits + $1, plan = $2
+       WHERE id = $3
+       RETURNING credits, plan`,
+      [selected.credits, plan, req.user.id]
+    );
+
+    if (!rows.length) return res.status(404).json({ success: false, message: 'User not found' });
+
+    res.json({
+      success: true,
+      message: `${selected.credits} credits added successfully`,
+      credits: rows[0].credits,
+      plan:    rows[0].plan,
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
   }
-
-  const user = users.get(req.user.id);
-  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-
-  // In production: integrate Stripe / payment gateway here before adding credits
-  user.credits += selected.credits;
-  user.plan     = plan;
-  users.set(user.id, user);
-
-  res.json({
-    success: true,
-    message: `${selected.credits} credits added successfully`,
-    credits: user.credits,
-    plan:    user.plan,
-  });
 }

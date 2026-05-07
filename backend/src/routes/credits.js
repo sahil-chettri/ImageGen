@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { protect } from '../middleware/auth.js';
 import { getCredits, getPlans, purchaseCredits } from '../controllers/creditsController.js';
 
 const router = Router();
 
-router.use(authenticate);
+router.use(protect);
 
 router.get('/',          getCredits);
 router.get('/plans',     getPlans);
