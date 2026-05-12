@@ -1,10 +1,9 @@
 import { body, validationResult } from 'express-validator';
 import pool                       from '../db.js';
-import { generateImage, transformImage } from '../services/aiService.js';
+import { generateImage, transformImage, inpaintImage } from '../services/aiService.js';
 
 const VALID_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:2'];
 const VALID_STYLES = ['Photorealistic', 'Anime', 'Oil Painting', 'Oil Paint', 'Sketch', '3D Render', 'Cinematic', 'Neon', 'Watercolor'];
-
 const CREDIT_COST  = 1;
 
 /* ── Validators ─────────────────────────────────────────────────────────── */
@@ -23,14 +22,12 @@ async function deductCredits(userId) {
      RETURNING credits`,
     [CREDIT_COST, userId]
   );
-
   if (!rows.length) {
     const user = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
     if (!user.rows.length)
       throw Object.assign(new Error('User not found'), { statusCode: 404 });
     throw Object.assign(new Error('Insufficient credits'), { statusCode: 402 });
   }
-
   return rows[0].credits;
 }
 
@@ -97,6 +94,46 @@ export async function imageToImage(req, res, next) {
       userId: req.user.id,
       type:   'image-to-image',
       prompt, negativePrompt, ratio, style,
+      sourceImageUrl,
+      ...result,
+    });
+
+    return res.status(201).json({ success: true, generation, creditsRemaining });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** POST /api/v1/generate/inpaint (multipart: image + mask) */
+export async function inpaintToImage(req, res, next) {
+  try {
+    const imageFile = req.files?.image?.[0];
+    const maskFile  = req.files?.mask?.[0];
+
+    if (!imageFile)
+      return res.status(400).json({ success: false, message: 'Original image file is required' });
+    if (!maskFile)
+      return res.status(400).json({ success: false, message: 'Mask file is required' });
+
+    const creditsRemaining = await deductCredits(req.user.id);
+    const { prompt = 'Fill this area naturally', negativePrompt = '', ratio = '1:1' } = req.body;
+    const sourceImageUrl = `/uploads/${imageFile.filename}`;
+
+    const result = await inpaintImage({
+      imageFile,
+      maskFile,
+      prompt,
+      negativePrompt,
+      ratio,
+    });
+
+    const generation = await saveGeneration({
+      userId: req.user.id,
+      type:   'inpainting',
+      prompt,
+      negativePrompt,
+      ratio,
+      style: 'Photorealistic',
       sourceImageUrl,
       ...result,
     });

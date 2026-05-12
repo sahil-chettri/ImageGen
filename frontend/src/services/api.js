@@ -1,75 +1,103 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+// frontend/src/services/api.js
+// Replaces the original file — adds verifyOTP and resendOTP methods.
 
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 const TOKEN_KEY = 'imagegen_token';
+
+// ─── Token Storage ────────────────────────────────────────────────────────────
 export const tokenStorage = {
-  get:    ()      => localStorage.getItem(TOKEN_KEY),
-  set:    (token) => localStorage.setItem(TOKEN_KEY, token),
-  remove: ()      => localStorage.removeItem(TOKEN_KEY),
+  get: () => localStorage.getItem(TOKEN_KEY),
+  set: (token) => localStorage.setItem(TOKEN_KEY, token),
+  remove: () => localStorage.removeItem(TOKEN_KEY),
 };
 
-async function request(endpoint, options = {}) {
+// ─── Core Fetch ───────────────────────────────────────────────────────────────
+async function request(path, options = {}) {
   const token = tokenStorage.get();
-  const headers = {
-    ...(options.body && !(options.body instanceof FormData)
-      ? { 'Content-Type': 'application/json' }
-      : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers,
-  };
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-    body: options.body instanceof FormData
-      ? options.body
-      : options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const data = await res.json();
+  const headers = { ...(options.headers || {}) };
+
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  // Don't set Content-Type for FormData (browser sets it with boundary)
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+
   if (!res.ok) {
-    const err = new Error(data.message || `Request failed: ${res.status}`);
+    const err = new Error(data?.message || `Request failed: ${res.status}`);
     err.status = res.status;
+    err.data = data;
     throw err;
   }
+
   return data;
 }
 
-const auth = {
-  async login(email, password) {
-    const data = await request('/auth/login', { method: 'POST', body: { email, password } });
-    if (data.token) tokenStorage.set(data.token);
-    return data;
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+export const api = {
+  auth: {
+    register: (body) =>
+      request('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
+
+    login: (body) =>
+      request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+
+    /** Verify the 6-digit OTP entered by the user */
+    verifyOTP: (body) =>
+      request('/auth/verify-otp', { method: 'POST', body: JSON.stringify(body) }),
+
+    /** Request a fresh OTP (after expiry or too many wrong attempts) */
+    resendOTP: (body) =>
+      request('/auth/resend-otp', { method: 'POST', body: JSON.stringify(body) }),
+
+    getMe: () => request('/auth/me'),
+
+    adminLogin: (body) =>
+      request('/auth/admin/login', { method: 'POST', body: JSON.stringify(body) }),
   },
-  async register(name, email, password) {
-    const data = await request('/auth/register', { method: 'POST', body: { name, email, password } });
-    if (data.token) tokenStorage.set(data.token);
-    return data;
+
+  generate: {
+    text: (body) =>
+      request('/generate/text', { method: 'POST', body: JSON.stringify(body) }),
+
+    image: (formData) =>
+      request('/generate/image', { method: 'POST', body: formData }),
+
+    get: (id) => request(`/generate/${id}`),
   },
-  logout() { tokenStorage.remove(); },
-  getMe() { return request('/auth/me'); },
+
+  gallery: {
+    list: (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return request(`/gallery${qs ? `?${qs}` : ''}`);
+    },
+    get: (id) => request(`/gallery/${id}`),
+    delete: (id) => request(`/gallery/${id}`, { method: 'DELETE' }),
+  },
+
+  credits: {
+    get: () => request('/credits'),
+    plans: () => request('/credits/plans'),
+    purchase: (body) =>
+      request('/credits/purchase', { method: 'POST', body: JSON.stringify(body) }),
+  },
+
+  upload: {
+    image: (formData) =>
+      request('/upload/image', { method: 'POST', body: formData }),
+  },
+
+  health: {
+    get: () => request('/health'),
+  },
 };
 
-const generate = {
-  text({ prompt, negativePrompt, ratio = '1:1', style = 'Photorealistic' }) {
-    return request('/generate/text', {
-      method: 'POST',
-      body: { prompt, negativePrompt, ratio, style },
-    });
-  },
-  image({ file, prompt, negativePrompt, ratio = '1:1', style = 'Photorealistic' }) {
-    const form = new FormData();
-    form.append('image', file);
-    if (prompt) form.append('prompt', prompt);
-    if (negativePrompt) form.append('negativePrompt', negativePrompt);
-    form.append('ratio', ratio);
-    form.append('style', style);
-    return request('/generate/image', { method: 'POST', body: form });
-  },
-};
-
-const credits = {
-  get()          { return request('/credits'); },
-  plans()        { return request('/credits/plans'); },
-  purchase(plan) { return request('/credits/purchase', { method: 'POST', body: { plan } }); },
-};
-
-const api = { auth, generate, credits };
 export default api;

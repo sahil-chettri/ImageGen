@@ -1,398 +1,277 @@
-import { useState, useEffect } from "react";
-import api from "../services/api.js";
+// frontend/src/components/LoginModal.jsx
+import { useState, useRef, useEffect } from 'react';
+import api, { tokenStorage } from '../services/api';
 
-export default function LoginModal({ onSuccess, onClose }) {
-  const [tab, setTab]         = useState("login");
-  const [form, setForm]       = useState({ name: "", email: "", password: "" });
-  const [error, setError]     = useState("");
+const S = {
+  overlay: {
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+    width: '100vw', height: '100vh',
+    background: 'rgba(20,16,12,0.72)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 99999, padding: '16px',
+    boxSizing: 'border-box',
+  },
+  box: {
+    background: '#f5f0e8', borderRadius: '24px',
+    padding: '40px 36px', width: '100%', maxWidth: '440px',
+    position: 'relative', boxShadow: '0 32px 80px rgba(20,16,12,0.35)',
+    maxHeight: '90vh', overflowY: 'auto',
+  },
+  closeBtn: {
+    position: 'absolute', top: '14px', right: '14px',
+    background: 'rgba(26,22,18,0.08)', border: 'none', borderRadius: '50%',
+    width: '32px', height: '32px', cursor: 'pointer', fontSize: '14px',
+    color: '#4a3f35', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  header: { textAlign: 'center', marginBottom: '28px' },
+  logo: { fontSize: '36px', marginBottom: '10px' },
+  title: { fontFamily: 'Georgia, serif', fontSize: '26px', color: '#1a1612', marginBottom: '6px', letterSpacing: '-0.5px' },
+  subtitle: { fontSize: '14px', color: '#8a7d72', lineHeight: 1.5 },
+  tabs: {
+    display: 'flex', background: '#ede7d9', borderRadius: '12px',
+    padding: '4px', marginBottom: '24px', gap: '4px',
+  },
+  tab: (active) => ({
+    flex: 1, border: 'none', padding: '10px', borderRadius: '9px',
+    fontSize: '14px', fontWeight: 500, cursor: 'pointer',
+    background: active ? '#f5f0e8' : 'transparent',
+    color: active ? '#1a1612' : '#8a7d72',
+    boxShadow: active ? '0 2px 8px rgba(26,22,18,0.1)' : 'none',
+    transition: 'all 0.2s',
+  }),
+  errorBox: {
+    background: '#fde8e8', border: '1px solid #f5c6c6', color: '#c0392b',
+    fontSize: '13px', padding: '10px 14px', borderRadius: '10px', marginBottom: '16px',
+  },
+  infoBox: {
+    background: '#e8f4e8', border: '1px solid #c6e0c6', color: '#276127',
+    fontSize: '13px', padding: '10px 14px', borderRadius: '10px', marginBottom: '16px',
+  },
+  form: { display: 'flex', flexDirection: 'column', gap: '16px' },
+  group: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  label: { fontSize: '13px', fontWeight: 500, color: '#4a3f35' },
+  input: {
+    background: '#fff', border: '1.5px solid rgba(26,22,18,0.15)', borderRadius: '12px',
+    padding: '12px 16px', fontSize: '15px', color: '#1a1612', outline: 'none',
+    fontFamily: 'inherit', width: '100%', boxSizing: 'border-box',
+  },
+  primaryBtn: (disabled) => ({
+    background: disabled ? '#c0a898' : '#e85d3a', color: '#fff', border: 'none',
+    borderRadius: '12px', padding: '14px', fontSize: '15px', fontWeight: 500,
+    cursor: disabled ? 'not-allowed' : 'pointer', width: '100%',
+    boxShadow: '0 4px 16px rgba(232,93,58,0.3)', fontFamily: 'inherit',
+  }),
+  otpBoxes: { display: 'flex', gap: '10px', justifyContent: 'center' },
+  otpInput: {
+    width: '48px', height: '56px', textAlign: 'center', fontSize: '22px',
+    fontWeight: 600, color: '#1a1612', background: '#fff',
+    border: '1.5px solid rgba(26,22,18,0.15)', borderRadius: '12px',
+    outline: 'none', fontFamily: 'inherit',
+  },
+  resendRow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '13px', color: '#8a7d72' },
+  resendBtn: (disabled) => ({
+    background: 'none', border: 'none', fontSize: '13px', fontWeight: 500,
+    color: disabled ? '#b0a090' : '#e85d3a', cursor: disabled ? 'default' : 'pointer', padding: 0,
+  }),
+  backBtn: {
+    background: 'none', border: 'none', fontSize: '13px', color: '#8a7d72',
+    cursor: 'pointer', textAlign: 'center', padding: '4px', fontFamily: 'inherit',
+  },
+};
+
+export default function LoginModal({ onClose, onSuccess }) {
+  const [tab, setTab] = useState('login');
+  const [step, setStep] = useState('form');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const otpRefs = useRef([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  // Lock body scroll while modal is open
   useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  useEffect(() => {
+    if (step === 'otp') {
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+      setResendCooldown(60);
+    }
+  }, [step]);
 
-  const submit = async () => {
-    setError("");
-    if (!form.email || !form.password) return setError("Email and password are required.");
-    if (tab === "register" && !form.name) return setError("Name is required.");
-    setLoading(true);
+  function handleOtpChange(index, value) {
+    if (!/^\d*$/.test(value)) return;
+    const next = [...otp];
+    next[index] = value.slice(-1);
+    setOtp(next);
+    if (value && index < 5) otpRefs.current[index + 1]?.focus();
+  }
+
+  function handleOtpKeyDown(index, e) {
+    if (e.key === 'Backspace' && !otp[index] && index > 0)
+      otpRefs.current[index - 1]?.focus();
+  }
+
+  function handleOtpPaste(e) {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!text) return;
+    const next = text.split('').concat(Array(6).fill('')).slice(0, 6);
+    setOtp(next);
+    otpRefs.current[Math.min(text.length, 5)]?.focus();
+  }
+
+  async function handleFormSubmit(e) {
+    e.preventDefault();
+    setError(''); setInfo(''); setLoading(true);
     try {
-      const data =
-        tab === "login"
-          ? await api.auth.login(form.email, form.password)
-          : await api.auth.register(form.name, form.email, form.password);
-      onSuccess(data.user);
+      if (tab === 'register') {
+        const res = await api.auth.register({ name, email, password });
+        if (res.requiresVerification) { setStep('otp'); setInfo(res.message); }
+      } else {
+        try {
+          const res = await api.auth.login({ email, password });
+          tokenStorage.set(res.token);
+          onSuccess(res.user);
+        } catch (err) {
+          if (err.status === 403 && err.data?.requiresVerification) {
+            setStep('otp'); setInfo(err.data.message);
+          } else { throw err; }
+        }
+      }
     } catch (err) {
-      setError(err.message || "Something went wrong.");
+      setError(err.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  async function handleOtpSubmit(e) {
+    e.preventDefault();
+    const code = otp.join('');
+    if (code.length < 6) { setError('Please enter all 6 digits'); return; }
+    setError(''); setInfo(''); setLoading(true);
+    try {
+      const res = await api.auth.verifyOTP({ email, otp: code });
+      tokenStorage.set(res.token);
+      onSuccess(res.user);
+    } catch (err) {
+      setError(err.message || 'Verification failed');
+      setOtp(['', '', '', '', '', '']);
+      otpRefs.current[0]?.focus();
+    } finally { setLoading(false); }
+  }
+
+  async function handleResend() {
+    if (resendCooldown > 0) return;
+    setError(''); setLoading(true);
+    try {
+      const res = await api.auth.resendOTP({ email });
+      setInfo(res.message); setResendCooldown(60);
+      setOtp(['', '', '', '', '', '']);
+      otpRefs.current[0]?.focus();
+    } catch (err) {
+      setError(err.message || 'Could not resend OTP');
+    } finally { setLoading(false); }
+  }
+
+  function switchTab(t) {
+    setTab(t); setStep('form'); setError(''); setInfo('');
+    setOtp(['', '', '', '', '', '']); setName(''); setPassword('');
+  }
 
   return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap');
+    <div style={S.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div style={S.box}>
+        <button style={S.closeBtn} onClick={onClose}>✕</button>
 
-        .lm-overlay {
-          position: fixed;
-          inset: 0;
-          height: 100vh;
-          width: 100vw;
-          overflow: hidden;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          background: rgba(0,0,0,0.75);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          animation: lm-fade-in 0.25s ease;
-        }
-
-        @keyframes lm-fade-in {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-
-        @keyframes lm-slide-up {
-          from { opacity: 0; transform: translateY(24px) scale(0.97); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-
-        @keyframes lm-shimmer {
-          0%   { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
-
-        .lm-card {
-          position: relative;
-          width: 90%;
-          max-width: 480px;
-          background: #0f0f13;
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 28px;
-          padding: 48px 44px 40px;
-          box-shadow:
-            0 0 0 1px rgba(255,255,255,0.04),
-            0 40px 80px rgba(0,0,0,0.6),
-            0 0 120px rgba(139,92,246,0.08);
-          animation: lm-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-          font-family: 'DM Sans', sans-serif;
-          overflow: hidden;
-        }
-
-        .lm-card::before {
-          content: '';
-          position: absolute;
-          top: -80px;
-          right: -60px;
-          width: 260px;
-          height: 260px;
-          background: radial-gradient(circle, rgba(139,92,246,0.18) 0%, transparent 70%);
-          pointer-events: none;
-        }
-
-        .lm-card::after {
-          content: '';
-          position: absolute;
-          bottom: -60px;
-          left: -40px;
-          width: 200px;
-          height: 200px;
-          background: radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%);
-          pointer-events: none;
-        }
-
-        .lm-close {
-          position: absolute;
-          top: 20px;
-          right: 20px;
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.05);
-          color: rgba(255,255,255,0.4);
-          font-size: 14px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-          z-index: 2;
-        }
-        .lm-close:hover {
-          background: rgba(255,255,255,0.1);
-          color: rgba(255,255,255,0.8);
-        }
-
-        .lm-header {
-          text-align: center;
-          margin-bottom: 32px;
-          position: relative;
-          z-index: 1;
-        }
-
-        .lm-logo {
-          width: 62px;
-          height: 62px;
-          border-radius: 18px;
-          background: linear-gradient(135deg, #7c3aed, #4f46e5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto 20px;
-          box-shadow: 0 8px 32px rgba(124,58,237,0.4), 0 0 0 1px rgba(255,255,255,0.1);
-        }
-
-        .lm-title {
-          font-family: 'Syne', sans-serif;
-          font-size: 28px;
-          font-weight: 800;
-          color: #ffffff;
-          margin: 0 0 6px;
-          letter-spacing: -0.5px;
-        }
-
-        .lm-subtitle {
-          font-size: 14px;
-          color: rgba(255,255,255,0.35);
-          margin: 0;
-          font-weight: 400;
-        }
-
-        .lm-divider {
-          width: 40px;
-          height: 2px;
-          background: linear-gradient(90deg, #7c3aed, #4f46e5);
-          border-radius: 2px;
-          margin: 14px auto 0;
-          opacity: 0.6;
-        }
-
-        .lm-tabs {
-          display: flex;
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.07);
-          border-radius: 14px;
-          padding: 4px;
-          margin-bottom: 28px;
-          gap: 4px;
-          position: relative;
-          z-index: 1;
-        }
-
-        .lm-tab {
-          flex: 1;
-          padding: 10px 0;
-          border: none;
-          border-radius: 10px;
-          font-size: 14px;
-          font-weight: 500;
-          font-family: 'DM Sans', sans-serif;
-          background: transparent;
-          color: rgba(255,255,255,0.35);
-          cursor: pointer;
-          transition: all 0.2s;
-          letter-spacing: 0.01em;
-        }
-
-        .lm-tab:hover { color: rgba(255,255,255,0.6); }
-
-        .lm-tab-active {
-          background: rgba(255,255,255,0.08);
-          color: #ffffff;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-        }
-
-        .lm-form {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          position: relative;
-          z-index: 1;
-        }
-
-        .lm-input {
-          width: 100%;
-          padding: 14px 16px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 12px;
-          font-size: 15px;
-          font-family: 'DM Sans', sans-serif;
-          color: #fff;
-          outline: none;
-          transition: all 0.2s;
-          box-sizing: border-box;
-        }
-
-        .lm-input::placeholder { color: rgba(255,255,255,0.25); }
-
-        .lm-input:focus {
-          border-color: rgba(139,92,246,0.6);
-          background: rgba(139,92,246,0.07);
-          box-shadow: 0 0 0 3px rgba(139,92,246,0.12);
-        }
-
-        .lm-error {
-          color: #f87171;
-          font-size: 13px;
-          margin: 0;
-          padding: 10px 14px;
-          background: rgba(248,113,113,0.08);
-          border: 1px solid rgba(248,113,113,0.2);
-          border-radius: 10px;
-        }
-
-        .lm-btn {
-          padding: 15px;
-          background: linear-gradient(135deg, #7c3aed, #4f46e5);
-          color: #fff;
-          border: none;
-          border-radius: 12px;
-          font-size: 15px;
-          font-weight: 600;
-          font-family: 'DM Sans', sans-serif;
-          cursor: pointer;
-          letter-spacing: 0.02em;
-          margin-top: 4px;
-          position: relative;
-          overflow: hidden;
-          transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
-          box-shadow: 0 4px 20px rgba(124,58,237,0.35);
-        }
-
-        .lm-btn::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%);
-          background-size: 200% 100%;
-          opacity: 0;
-          transition: opacity 0.3s;
-        }
-
-        .lm-btn:hover::before {
-          opacity: 1;
-          animation: lm-shimmer 1.2s infinite;
-        }
-
-        .lm-btn:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 8px 28px rgba(124,58,237,0.45);
-        }
-
-        .lm-btn:active { transform: translateY(0); }
-
-        .lm-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        .lm-switch {
-          text-align: center;
-          font-size: 13.5px;
-          color: rgba(255,255,255,0.3);
-          margin: 20px 0 0;
-          position: relative;
-          z-index: 1;
-        }
-
-        .lm-switch-link {
-          color: #a78bfa;
-          cursor: pointer;
-          font-weight: 600;
-          transition: color 0.2s;
-        }
-
-        .lm-switch-link:hover { color: #c4b5fd; }
-      `}</style>
-
-      <div className="lm-overlay" onClick={onClose}>
-        <div className="lm-card" onClick={(e) => e.stopPropagation()}>
-
-          <button className="lm-close" onClick={onClose}>✕</button>
-
-          <div className="lm-header">
-            <div className="lm-logo">
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="white">
-                <path d="M12 2L13.09 8.26L19 6L14.74 10.26L21 12L14.74 13.74L19 18L13.09 15.74L12 22L10.91 15.74L5 18L9.26 13.74L3 12L9.26 10.26L5 6L10.91 8.26L12 2Z"/>
-              </svg>
-            </div>
-            <h2 className="lm-title">
-              {tab === "login" ? "Welcome back" : "Create account"}
-            </h2>
-            <p className="lm-subtitle">
-              {tab === "login" ? "Sign in to your ImageGen account" : "Start creating AI images today"}
-            </p>
-            <div className="lm-divider" />
-          </div>
-
-          <div className="lm-tabs">
-            {["login", "register"].map((t) => (
-              <button
-                key={t}
-                className={`lm-tab ${tab === t ? "lm-tab-active" : ""}`}
-                onClick={() => { setTab(t); setError(""); }}
-              >
-                {t === "login" ? "Sign In" : "Sign Up"}
-              </button>
-            ))}
-          </div>
-
-          <div className="lm-form">
-            {tab === "register" && (
-              <input
-                className="lm-input"
-                placeholder="Full name"
-                value={form.name}
-                onChange={set("name")}
-              />
-            )}
-            <input
-              className="lm-input"
-              placeholder="Email address"
-              type="email"
-              value={form.email}
-              onChange={set("email")}
-            />
-            <input
-              className="lm-input"
-              placeholder="Password"
-              type="password"
-              value={form.password}
-              onChange={set("password")}
-              onKeyDown={(e) => e.key === "Enter" && submit()}
-            />
-
-            {error && <p className="lm-error">{error}</p>}
-
-            <button className="lm-btn" onClick={submit} disabled={loading}>
-              {loading ? "Please wait…" : tab === "login" ? "Sign In" : "Create Account"}
-            </button>
-          </div>
-
-          <p className="lm-switch">
-            {tab === "login" ? "Don't have an account? " : "Already have an account? "}
-            <span
-              className="lm-switch-link"
-              onClick={() => { setTab(tab === "login" ? "register" : "login"); setError(""); }}
-            >
-              {tab === "login" ? "Sign up" : "Sign in"}
-            </span>
+        <div style={S.header}>
+          <div style={S.logo}>🎨</div>
+          <h2 style={S.title}>
+            {step === 'otp' ? 'Check your email' : tab === 'login' ? 'Welcome back' : 'Create account'}
+          </h2>
+          <p style={S.subtitle}>
+            {step === 'otp'
+              ? `We sent a 6-digit code to ${email}`
+              : tab === 'login' ? 'Sign in to continue creating' : 'Join ImageGen and start creating'}
           </p>
-
         </div>
+
+        {step === 'form' && (
+          <div style={S.tabs}>
+            <button style={S.tab(tab === 'login')} onClick={() => switchTab('login')}>Sign In</button>
+            <button style={S.tab(tab === 'register')} onClick={() => switchTab('register')}>Register</button>
+          </div>
+        )}
+
+        {error && <div style={S.errorBox}>{error}</div>}
+        {info  && <div style={S.infoBox}>{info}</div>}
+
+        {step === 'form' && (
+          <form style={S.form} onSubmit={handleFormSubmit}>
+            {tab === 'register' && (
+              <div style={S.group}>
+                <label style={S.label}>Full name</label>
+                <input style={S.input} type="text" placeholder="Jane Doe"
+                  value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />
+              </div>
+            )}
+            <div style={S.group}>
+              <label style={S.label}>Email</label>
+              <input style={S.input} type="email" placeholder="jane@example.com"
+                value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+            </div>
+            <div style={S.group}>
+              <label style={S.label}>Password</label>
+              <input style={S.input} type="password"
+                placeholder={tab === 'register' ? 'Min. 8 characters' : 'Your password'}
+                value={password} onChange={(e) => setPassword(e.target.value)}
+                required minLength={tab === 'register' ? 8 : undefined}
+                autoComplete={tab === 'login' ? 'current-password' : 'new-password'} />
+            </div>
+            <button type="submit" style={S.primaryBtn(loading)} disabled={loading}>
+              {loading ? 'Please wait…' : tab === 'login' ? 'Sign In' : 'Create Account'}
+            </button>
+          </form>
+        )}
+
+        {step === 'otp' && (
+          <form style={S.form} onSubmit={handleOtpSubmit}>
+            <div style={S.otpBoxes} onPaste={handleOtpPaste}>
+              {otp.map((digit, i) => (
+                <input
+                  key={i} ref={(el) => (otpRefs.current[i] = el)}
+                  style={S.otpInput} type="text" inputMode="numeric"
+                  maxLength={1} value={digit}
+                  onChange={(e) => handleOtpChange(i, e.target.value)}
+                  onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                  autoComplete="one-time-code" aria-label={`OTP digit ${i + 1}`}
+                />
+              ))}
+            </div>
+            <button type="submit" style={S.primaryBtn(loading)} disabled={loading}>
+              {loading ? 'Verifying…' : 'Verify Email'}
+            </button>
+            <div style={S.resendRow}>
+              <span>Didn't receive a code?</span>
+              <button type="button" style={S.resendBtn(resendCooldown > 0 || loading)}
+                onClick={handleResend} disabled={resendCooldown > 0 || loading}>
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend OTP'}
+              </button>
+            </div>
+            <button type="button" style={S.backBtn}
+              onClick={() => { setStep('form'); setError(''); setInfo(''); }}>
+              ← Change email
+            </button>
+          </form>
+        )}
       </div>
-    </>
+    </div>
   );
 }

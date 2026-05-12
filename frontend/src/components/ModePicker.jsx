@@ -1,188 +1,450 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-const LogoStar = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-    <path d="M12 2L13.09 8.26L19 6L14.74 10.26L21 12L14.74 13.74L19 18L13.09 15.74L12 22L10.91 15.74L5 18L9.26 13.74L3 12L9.26 10.26L5 6L10.91 8.26L12 2Z" />
-  </svg>
-);
+/* ─── Gallery thumbnails (same emoji-art cards as the landing strip) ─── */
+const GALLERY_ITEMS = [
+  { bg: "#c8b89a", emoji: "🌸", label: "Bloom" },
+  { bg: "#7b6fa0", emoji: "🌌", label: "Galaxy" },
+  { bg: "#b56060", emoji: "🦊", label: "Fox" },
+  { bg: "#5fa8a0", emoji: "🏙️", label: "City" },
+  { bg: "#c8a87a", emoji: "🌅", label: "Sunset" },
+  { bg: "#6aaa88", emoji: "🌿", label: "Leaf" },
+  { bg: "#d4907a", emoji: "🍊", label: "Citrus" },
+  { bg: "#7090b8", emoji: "🐬", label: "Ocean" },
+  { bg: "#c8b89a", emoji: "🌸", label: "Bloom" },
+  { bg: "#5fa8a0", emoji: "🏔️", label: "Mountain" },
+];
 
+/* ─── Mode card data ─── */
 const MODES = [
   {
-    id: "tti",
+    id: "text-to-image",
+    icon: "✦",
+    iconBg: "#7c5cbf",
     title: "Text to Image",
-    desc: "Transform your words into stunning visuals. Just describe what you imagine — the AI does the rest.",
-    btn: "Start Creating",
-    iconBg: "linear-gradient(135deg, rgba(139,92,246,0.2), rgba(109,40,217,0.3))",
-    iconBorder: "rgba(139,92,246,0.4)",
-    hoverGlow: "rgba(139,92,246,0.08)",
-    hoverBorder: "rgba(139,92,246,0.4)",
-    accentColor: "#a78bfa",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="#a78bfa">
-        <path d="M12 2L13.09 8.26L19 6L14.74 10.26L21 12L14.74 13.74L19 18L13.09 15.74L12 22L10.91 15.74L5 18L9.26 13.74L3 12L9.26 10.26L5 6L10.91 8.26L12 2Z" />
-      </svg>
-    ),
-    tag: "Most Popular",
+    subtitle: "Transform your words into stunning visuals",
+    desc: "Just describe what you imagine — the AI does the rest.",
+    cta: "Start Creating",
+    badge: "Most Popular",
+    badgeColor: "#7c5cbf",
   },
   {
-    id: "i2i",
+    id: "image-to-image",
+    icon: "⇄",
+    iconBg: "#3a8fbf",
     title: "Image to Image",
-    desc: "Upload any photo and let AI transform its style, mood, or content while preserving structure.",
-    btn: "Upload & Transform",
-    iconBg: "linear-gradient(135deg, rgba(59,130,246,0.2), rgba(29,78,216,0.3))",
-    iconBorder: "rgba(59,130,246,0.4)",
-    hoverGlow: "rgba(59,130,246,0.08)",
-    hoverBorder: "rgba(59,130,246,0.4)",
-    accentColor: "#93c5fd",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2"/>
-        <circle cx="8.5" cy="8.5" r="1.5" fill="#93c5fd" stroke="none"/>
-        <polyline points="21 15 16 10 5 21"/>
-      </svg>
-    ),
-    tag: null,
+    subtitle: "Upload any photo and transform it with AI",
+    desc: "Change style, mood, or content while preserving structure.",
+    cta: "Upload & Transform",
   },
   {
-    id: "inpaint",
+    id: "inpainting",
+    icon: "✏",
+    iconBg: "#3aab8a",
     title: "Inpainting",
-    desc: "Paint a mask over any part of your image, then describe what should replace it. Surgical AI editing.",
-    btn: "Start Painting",
-    iconBg: "linear-gradient(135deg, rgba(20,184,166,0.2), rgba(8,145,178,0.3))",
-    iconBorder: "rgba(20,184,166,0.4)",
-    hoverGlow: "rgba(20,184,166,0.08)",
-    hoverBorder: "rgba(20,184,166,0.4)",
-    accentColor: "#5eead4",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5eead4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
-      </svg>
-    ),
-    tag: null,
+    subtitle: "Paint a mask, then describe the replacement",
+    desc: "Surgical AI editing — change just the part you select.",
+    cta: "Start Painting",
   },
   {
-    id: "enhance",
+    id: "enhancement",
+    icon: "◈",
+    iconBg: "#d07a2a",
     title: "Image Enhancement",
-    desc: "Upscale resolution, fix noise, adjust lighting, and apply professional-grade filters in one click.",
-    btn: "Enhance Now",
-    iconBg: "linear-gradient(135deg, rgba(245,158,11,0.2), rgba(234,88,12,0.3))",
-    iconBorder: "rgba(245,158,11,0.4)",
-    hoverGlow: "rgba(245,158,11,0.08)",
-    hoverBorder: "rgba(245,158,11,0.4)",
-    accentColor: "#fcd34d",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" strokeWidth="2">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-      </svg>
-    ),
-    tag: null,
+    subtitle: "Upscale, denoise, and apply pro-grade filters",
+    desc: "One-click enhancement with live preview and sliders.",
+    cta: "Enhance Now",
   },
 ];
 
-export default function ModePicker({ onTextToImage, onImageToImage, onInpainting, onEnhancement, onBack }) {
-  const [hovered, setHovered] = useState(null);
-  const handlers = { tti: onTextToImage, i2i: onImageToImage, inpaint: onInpainting, enhance: onEnhancement };
+/* ─── Marquee strip ─── */
+function GalleryStrip() {
+  return (
+    <div style={{
+      width: "100%",
+      overflow: "hidden",
+      padding: "32px 0 0",
+      maskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
+      WebkitMaskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
+    }}>
+      <div style={{
+        display: "flex",
+        gap: 12,
+        animation: "marquee 30s linear infinite",
+        width: "max-content",
+      }}>
+        {[...GALLERY_ITEMS, ...GALLERY_ITEMS].map((item, i) => (
+          <div key={i} style={{
+            width: 160,
+            height: 120,
+            borderRadius: 16,
+            background: item.bg,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 52,
+            flexShrink: 0,
+            boxShadow: "0 2px 16px rgba(0,0,0,0.08)",
+          }}>
+            {item.emoji}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Single mode card ─── */
+function ModeCard({ mode, onClick }) {
+  const [hov, setHov] = useState(false);
 
   return (
-    <div className="lp-root">
-      {/* Nav */}
-      <nav className="lp-nav">
-        <div className="lp-nav-inner">
-          <div className="lp-logo" onClick={onBack} style={{ cursor: "pointer" }}>
-            <div className="lp-logo-gem"><LogoStar /></div>
-            <span className="lp-logo-text">ImageGen</span>
+    <div
+      onClick={() => onClick(mode.id)}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        position: "relative",
+        background: hov ? "#fff" : "#faf8f4",
+        border: `1.5px solid ${hov ? "#d4c9b8" : "#ede8df"}`,
+        borderRadius: 20,
+        padding: "28px 28px 24px",
+        cursor: "pointer",
+        transition: "all 0.22s cubic-bezier(0.34,1.2,0.64,1)",
+        transform: hov ? "translateY(-4px)" : "translateY(0)",
+        boxShadow: hov
+          ? "0 12px 40px rgba(120,90,50,0.12), 0 2px 8px rgba(0,0,0,0.04)"
+          : "0 1px 4px rgba(0,0,0,0.04)",
+      }}
+    >
+      {/* Badge */}
+      {mode.badge && (
+        <div style={{
+          position: "absolute",
+          top: -12,
+          left: 24,
+          background: mode.badgeColor,
+          color: "#fff",
+          fontSize: 11,
+          fontWeight: 600,
+          padding: "3px 12px",
+          borderRadius: 99,
+          fontFamily: "'DM Sans', sans-serif",
+          letterSpacing: "0.3px",
+        }}>
+          {mode.badge}
+        </div>
+      )}
+
+      {/* Icon */}
+      <div style={{
+        width: 48,
+        height: 48,
+        borderRadius: 14,
+        background: mode.iconBg,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 22,
+        color: "#fff",
+        marginBottom: 18,
+        boxShadow: `0 4px 16px ${mode.iconBg}55`,
+        transition: "transform 0.2s, box-shadow 0.2s",
+        transform: hov ? "scale(1.08)" : "scale(1)",
+      }}>
+        {mode.icon}
+      </div>
+
+      {/* Text */}
+      <h3 style={{
+        margin: "0 0 6px",
+        fontSize: 18,
+        fontWeight: 700,
+        color: "#2a1f12",
+        fontFamily: "'Playfair Display', Georgia, serif",
+        letterSpacing: "-0.3px",
+      }}>
+        {mode.title}
+      </h3>
+      <p style={{
+        margin: "0 0 14px",
+        fontSize: 13,
+        color: "#7a6a55",
+        fontFamily: "'DM Sans', sans-serif",
+        lineHeight: 1.55,
+        fontWeight: 500,
+      }}>
+        {mode.desc}
+      </p>
+
+      {/* CTA link */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+        fontSize: 13,
+        fontWeight: 600,
+        color: mode.iconBg,
+        fontFamily: "'DM Sans', sans-serif",
+        transition: "gap 0.15s",
+      }}>
+        {mode.cta}
+        <span style={{
+          display: "inline-block",
+          transform: hov ? "translateX(4px)" : "translateX(0)",
+          transition: "transform 0.15s",
+        }}>→</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Main ModePicker ─── */
+export default function ModePicker({
+  onSelect,
+  onTextToImage,
+  onImageToImage,
+  onInpainting,
+  onEnhancement,
+  user,
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 60);
+    return () => clearTimeout(t);
+  }, []);
+
+  const handleSelect = (id) => {
+    if (onSelect) { onSelect(id); return; }
+    if (id === "text-to-image"  && onTextToImage)  { onTextToImage();  return; }
+    if (id === "image-to-image" && onImageToImage) { onImageToImage(); return; }
+    if (id === "inpainting"     && onInpainting)   { onInpainting();   return; }
+    if (id === "enhancement"    && onEnhancement)  { onEnhancement();  return; }
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#f5f0e8",
+      fontFamily: "'DM Sans', sans-serif",
+      display: "flex",
+      flexDirection: "column",
+    }}>
+
+      {/* Google Fonts */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+        @keyframes marquee {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-50%); }
+        }
+
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(24px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .mp-card-appear {
+          opacity: 0;
+          animation: fadeUp 0.5s ease forwards;
+        }
+        .mp-card-appear:nth-child(1) { animation-delay: 0.05s; }
+        .mp-card-appear:nth-child(2) { animation-delay: 0.12s; }
+        .mp-card-appear:nth-child(3) { animation-delay: 0.19s; }
+        .mp-card-appear:nth-child(4) { animation-delay: 0.26s; }
+
+        * { box-sizing: border-box; }
+      `}</style>
+
+      {/* ── Navbar ── */}
+      <nav style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 40px",
+        height: 60,
+        background: "#f5f0e8",
+        borderBottom: "1px solid #e8e0d0",
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
+      }}>
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            background: "linear-gradient(135deg, #c0562a, #e08050)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 14,
+            color: "#fff",
+            fontWeight: 800,
+          }}>
+            ✦
           </div>
-          <div className="lp-nav-links">
-            {["Features", "Gallery", "Pricing", "Docs"].map(l => (
-              <a key={l} className="lp-nav-link">{l}</a>
-            ))}
-          </div>
-          <div className="lp-nav-actions">
-            <button className="lp-btn-ghost">Sign In</button>
-            <button className="lp-btn-dark">Get Started</button>
-          </div>
+          <span style={{ fontSize: 17, fontWeight: 700, color: "#c0562a", fontFamily: "'Playfair Display', serif" }}>
+            ImageGen
+          </span>
+        </div>
+
+        {/* Nav links */}
+        <div style={{ display: "flex", gap: 28, alignItems: "center" }}>
+          {["Modes", "Gallery", "Pricing", "Docs"].map(l => (
+            <span key={l} style={{
+              fontSize: 13,
+              color: "#7a6a55",
+              cursor: "pointer",
+              fontWeight: 500,
+              transition: "color 0.15s",
+            }}
+              onMouseEnter={e => e.target.style.color = "#2a1f12"}
+              onMouseLeave={e => e.target.style.color = "#7a6a55"}
+            >{l}</span>
+          ))}
+        </div>
+
+        {/* Auth */}
+        <div style={{ display: "flex", gap: 10 }}>
+          {user ? (
+            <div style={{
+              width: 34,
+              height: 34,
+              borderRadius: "50%",
+              background: "#c0562a",
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 14,
+              fontWeight: 700,
+            }}>
+              {(user.name || user.email || "U")[0].toUpperCase()}
+            </div>
+          ) : (
+            <>
+              <button style={{
+                padding: "7px 18px",
+                borderRadius: 99,
+                border: "1.5px solid #d4c9b8",
+                background: "transparent",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#5a4a35",
+                cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+              }}>Log in</button>
+              <button style={{
+                padding: "7px 18px",
+                borderRadius: 99,
+                border: "none",
+                background: "#c0562a",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+              }}>Sign up free</button>
+            </>
+          )}
         </div>
       </nav>
 
-      {/* Hero */}
-      <div className="mp-hero">
-        <div className="mp-hero-glow" />
+      {/* ── Hero text ── */}
+      <div style={{
+        textAlign: "center",
+        padding: "52px 24px 0",
+        opacity: mounted ? 1 : 0,
+        transform: mounted ? "translateY(0)" : "translateY(20px)",
+        transition: "all 0.5s ease",
+      }}>
+        {/* Pill badge */}
         <div style={{
-          display: "inline-flex", alignItems: "center", gap: 7,
-          padding: "5px 14px", borderRadius: 999,
-          background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.3)",
-          fontSize: 12, fontWeight: 500, color: "#a78bfa", marginBottom: 24,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          background: "#fff",
+          border: "1px solid #e0d8cc",
+          borderRadius: 99,
+          padding: "5px 16px",
+          fontSize: 12,
+          fontWeight: 600,
+          color: "#7a6a55",
+          marginBottom: 24,
+          boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
         }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 0 3px rgba(34,197,94,.2)" }} />
+          <span style={{ color: "#c0562a" }}>✦</span>
           AI Studio — Choose your mode
         </div>
-        <h1 className="mp-title">
-          What will you <span className="lp-h1-gradient">create today?</span>
+
+        {/* Headline */}
+        <h1 style={{
+          margin: "0 0 16px",
+          fontSize: "clamp(36px, 5vw, 56px)",
+          fontWeight: 800,
+          lineHeight: 1.15,
+          color: "#2a1f12",
+          fontFamily: "'Playfair Display', Georgia, serif",
+          letterSpacing: "-1px",
+        }}>
+          What will you{" "}
+          <em style={{ color: "#c0562a", fontStyle: "italic" }}>create today?</em>
         </h1>
-        <p className="mp-subtitle">
+
+        <p style={{
+          margin: 0,
+          fontSize: 16,
+          color: "#7a6a55",
+          fontWeight: 400,
+          fontFamily: "'DM Sans', sans-serif",
+          maxWidth: 480,
+          marginInline: "auto",
+          lineHeight: 1.6,
+        }}>
           Four powerful AI tools. One seamless studio.
         </p>
       </div>
 
-      {/* Cards grid */}
-      <main className="mp-main">
-        <div className="mp-grid">
-          {MODES.map((mode) => {
-            const isH = hovered === mode.id;
-            return (
-              <div
-                key={mode.id}
-                className="mp-card"
-                style={{
-                  borderColor: isH ? mode.hoverBorder : "rgba(255,255,255,0.08)",
-                  background: isH
-                    ? `linear-gradient(135deg, ${mode.hoverGlow} 0%, var(--bg-card) 100%)`
-                    : "var(--bg-card)",
-                  transform: isH ? "translateY(-4px)" : "none",
-                  boxShadow: isH
-                    ? `0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px ${mode.hoverBorder}`
-                    : "0 2px 8px rgba(0,0,0,0.2)",
-                }}
-                onMouseEnter={() => setHovered(mode.id)}
-                onMouseLeave={() => setHovered(null)}
-                onClick={() => handlers[mode.id]?.()}
-              >
-                {/* Tag badge */}
-                {mode.tag && (
-                  <div style={{
-                    position: "absolute", top: 18, right: 18,
-                    padding: "3px 10px", borderRadius: 999,
-                    background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.35)",
-                    fontSize: 11, fontWeight: 600, color: "#a78bfa",
-                  }}>
-                    {mode.tag}
-                  </div>
-                )}
+      {/* ── Mode cards grid ── */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(2, 1fr)",
+        gap: 20,
+        maxWidth: 900,
+        width: "100%",
+        margin: "40px auto 0",
+        padding: "0 32px",
+      }}>
+        {MODES.map((mode) => (
+          <div key={mode.id} className="mp-card-appear">
+            <ModeCard mode={mode} onClick={handleSelect} />
+          </div>
+        ))}
+      </div>
 
-                {/* Icon */}
-                <div className="mp-card-icon" style={{
-                  background: mode.iconBg,
-                  border: `1px solid ${mode.iconBorder}`,
-                }}>
-                  {mode.icon}
-                </div>
+      {/* ── Gallery strip ── */}
+      <GalleryStrip />
 
-                <h2 className="mp-card-title">{mode.title}</h2>
-                <p className="mp-card-desc">{mode.desc}</p>
-
-                <div className="mp-card-btn" style={{ color: isH ? mode.accentColor : "rgba(255,255,255,0.3)" }}>
-                  {mode.btn}
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-                    style={{ transform: isH ? "translateX(4px)" : "none", transition: "transform .2s" }}>
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </main>
+      {/* ── Footer hint ── */}
+      <div style={{
+        textAlign: "center",
+        padding: "24px 0 40px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 24,
+        fontSize: 13,
+        color: "#a89880",
+        fontFamily: "'DM Sans', sans-serif",
+      }}>
+        <span>✦ It's free</span>
+        <span style={{ width: 1, height: 14, background: "#d4c9b8" }} />
+        <span>No credit card</span>
+        <span style={{ width: 1, height: 14, background: "#d4c9b8" }} />
+        <span>Start in seconds</span>
+      </div>
     </div>
   );
 }
