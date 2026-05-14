@@ -1,90 +1,383 @@
 /**
- * Inpainting.jsx  — warm-themed, with back button
- * 
- * This is the original Inpainting.jsx with:
- *  1. Warm beige CSS injected on mount
- *  2. Back button added to the navbar
- *  3. Logo/button colors updated to terracotta
- * 
- * All canvas/drawing logic is UNCHANGED.
+ * Inpainting.jsx — redesigned to match the target UI screenshot (card layout)
+ * All canvas/drawing/API logic is preserved; only the UI layout changed.
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import api from "../services/api.js";
 
-/* ─── Warm CSS (injected once) ─────────────────────────────────── */
-const WARM_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+/* ─── Injected CSS ──────────────────────────────────────────────────────── */
+const THEME_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box}
-.gen-root{background:#f5f0e8!important;font-family:'DM Sans',sans-serif!important;color:#2a1f12!important}
-.gen-nav{background:#f5f0e8!important;border-bottom:1px solid #e0d8cc!important}
-.gen-logo{color:#c0562a!important;font-family:'Playfair Display',serif!important;font-weight:700!important}
-.gen-logo-icon{background:linear-gradient(135deg,#c0562a,#e08050)!important}
-.gen-nav-link{color:#7a6a55!important}.gen-nav-link:hover{color:#2a1f12!important}
-.gen-btn-primary{background:#c0562a!important;border-radius:99px!important;color:#fff!important}
-.gen-btn-primary:hover{background:#a8481f!important}
-.gen-panel--left{background:#fff!important;border-right:1px solid #e0d8cc!important}
-.gen-panel--right{background:#faf8f4!important}
-.gen-panel-header{border-bottom:1px solid #ede8df!important}
-.gen-panel-title{font-family:'Playfair Display',serif!important;color:#2a1f12!important}
-.gen-label{color:#7a6a55!important}.gen-required{color:#c0562a!important}.gen-strength-val{color:#c0562a!important}
-.gen-textarea{background:#faf8f4!important;border:1.5px solid #e0d8cc!important;color:#2a1f12!important}
-.gen-textarea:focus{border-color:#c0562a!important;outline:none}
-.gen-textarea::placeholder{color:#a89880!important}
-.gen-dropzone{border:2px dashed #d4c9b8!important;background:#faf8f4!important}
-.gen-dropzone:hover,.gen-dropzone--active{border-color:#c0562a!important;background:#fdf5f0!important}
-.gen-dropzone-icon{color:#c0562a!important}.gen-dropzone-text{color:#2a1f12!important}.gen-dropzone-sub{color:#a89880!important}
-.gen-chip{border:1.5px solid #e0d8cc!important;background:#faf8f4!important;color:#7a6a55!important;border-radius:99px!important}
-.gen-chip:hover{border-color:#c0562a!important;color:#c0562a!important;background:#fdf5f0!important}
-.gen-chip--active{border-color:#c0562a!important;background:#fdf5f0!important;color:#c0562a!important;font-weight:700!important}
-.gen-slider{background:linear-gradient(to right,#c0562a var(--slider-val,50%),#e0d8cc var(--slider-val,50%))!important}
-.gen-slider::-webkit-slider-thumb{background:#c0562a!important}
-.gen-generate-btn{background:linear-gradient(135deg,#c0562a,#e08050)!important;border-radius:12px!important;box-shadow:0 4px 20px rgba(192,86,42,0.3)!important}
-.gen-generate-btn:disabled{background:#e0d8cc!important;color:#a89880!important;box-shadow:none!important}
-.gen-error{background:#fdf5f0!important;border:1px solid #f4c4a8!important;color:#c0562a!important;border-radius:10px!important}
-.gen-error-close{color:#c0562a!important}
-.gen-preview-title{font-family:'Playfair Display',serif!important;color:#2a1f12!important}
-.gen-preview-box{border:1.5px solid #e0d8cc!important;background:#fff!important;border-radius:16px!important}
-.gen-preview-empty-text{font-family:'Playfair Display',serif!important;color:#2a1f12!important}
-.gen-preview-empty-sub{color:#a89880!important}
-.gen-preview-spinner{border-color:#e0d8cc;border-top-color:#c0562a!important}
-.gen-preview-loading-text{color:#2a1f12!important}.gen-preview-loading-sub{color:#a89880!important}
-.gen-action-btn{border:1.5px solid #e0d8cc!important;background:#fff!important;color:#7a6a55!important;border-radius:99px!important}
-.gen-action-btn:hover:not(:disabled){border-color:#c0562a!important;color:#c0562a!important;background:#fdf5f0!important}
-.gen-action-btn:disabled{opacity:0.4;cursor:not-allowed}
-.gen-upload-remove{background:#fdf5f0!important;border:1px solid #f4c4a8!important;color:#c0562a!important}
+
+.inp-root{
+  display:flex; flex-direction:column; height:100vh; overflow:hidden;
+  background:#eeecea; font-family:'Inter',sans-serif; color:#1a120b;
+}
+
+/* ── Navbar ── */
+.inp-nav{
+  display:grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items:center; height:60px; padding:0 28px;
+  background:#eeecea; border-bottom:1px solid #e0dbd4; flex-shrink:0;
+}
+.inp-nav-left{ display:flex; align-items:center; gap:10px; }
+.inp-nav-center{ display:flex; align-items:center; gap:32px; justify-content:center; }
+.inp-nav-right{ display:flex; align-items:center; gap:14px; justify-content:flex-end; }
+.inp-nav-link{ font-size:14px; font-weight:500; color:#5a5048; cursor:pointer; transition:color 0.15s; }
+.inp-nav-link:hover{ color:#1a120b; }
+.inp-back-btn{
+  display:flex; align-items:center; gap:6px; padding:6px 14px;
+  border-radius:99px; border:1.5px solid #d6d0c8; background:#fff;
+  color:#5a5048; font-size:13px; font-weight:600; cursor:pointer;
+  font-family:'Inter',sans-serif; transition:all 0.15s;
+  box-shadow:0 1px 3px rgba(0,0,0,0.07);
+}
+.inp-back-btn:hover{ background:#f5f3f0; color:#1a120b; }
+.inp-logo{
+  display:flex; align-items:center; gap:8px;
+  font-weight:700; font-size:15px; color:#1a120b; cursor:pointer; margin-left:2px;
+}
+.inp-logo-icon{
+  width:32px; height:32px; border-radius:9px;
+  background:linear-gradient(135deg,#d05a28,#e8824a);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 2px 8px rgba(208,90,40,0.3);
+}
+.inp-get-started-btn{
+  padding:8px 22px; border-radius:99px; border:none;
+  background:linear-gradient(135deg,#d05a28,#e8824a);
+  color:#fff; font-size:13.5px; font-weight:600; cursor:pointer;
+  font-family:'Inter',sans-serif; transition:opacity 0.15s;
+  box-shadow:0 3px 12px rgba(208,90,40,0.35);
+}
+.inp-get-started-btn:hover{ opacity:0.88; }
+.inp-theme-icon{ cursor:pointer; color:#5a5048; display:flex; align-items:center; transition:color 0.15s; }
+.inp-theme-icon:hover{ color:#1a120b; }
+
+/* ── Body — two cards side by side ── */
+.inp-body{
+  display:flex; flex:1; overflow:hidden;
+  padding:18px 24px; gap:14px;
+}
+
+/* ── Left Card ── */
+.inp-left{
+  width:360px; flex-shrink:0; background:#fff;
+  border-radius:16px; border:1px solid #e0dbd4;
+  box-shadow:0 2px 16px rgba(0,0,0,0.07);
+  display:flex; flex-direction:column; overflow-y:auto;
+  scrollbar-width:thin; scrollbar-color:#e0dbd4 transparent;
+}
+.inp-left-header{
+  display:flex; align-items:center; gap:14px;
+  padding:22px 24px 18px;
+}
+.inp-left-icon{
+  width:52px; height:52px; border-radius:14px; flex-shrink:0;
+  background:linear-gradient(135deg,#d05a28,#e8824a);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 4px 16px rgba(208,90,40,0.35);
+}
+.inp-left-title{ font-size:19px; font-weight:700; margin:0 0 4px; color:#1a120b; letter-spacing:-0.4px; }
+.inp-left-sub{ font-size:12px; color:#8a7866; margin:0; line-height:1.5; }
+
+.inp-divider{ height:1px; background:#f0ebe4; }
+
+.inp-sections{ padding:18px 24px 20px; display:flex; flex-direction:column; gap:18px; flex:1; }
+
+/* Section label */
+.inp-step-label{
+  font-size:13px; font-weight:700; color:#1a120b; margin-bottom:8px;
+  display:flex; align-items:center; gap:4px;
+}
+.inp-step-required{ color:#d05a28; }
+.inp-step-sub{ font-size:11.5px; color:#8a7866; margin:0 0 9px; }
+
+/* Dropzone */
+.inp-dropzone{
+  border:1.5px dashed #d0c9c0; border-radius:12px;
+  padding:26px 16px; display:flex; flex-direction:column; align-items:center;
+  gap:8px; cursor:pointer; text-align:center; transition:all 0.15s;
+  background:#faf8f5;
+}
+.inp-dropzone:hover, .inp-dropzone--active{
+  border-color:#d05a28; background:#fef6f1;
+}
+.inp-dropzone-icon{ color:#d05a28; opacity:0.8; }
+.inp-dropzone-title{ font-size:13.5px; font-weight:600; color:#1a120b; margin:0; }
+.inp-dropzone-hint{ font-size:12px; color:#8a7866; margin:0; }
+
+/* Uploaded file row */
+.inp-file-row{
+  display:flex; align-items:center; gap:10px; padding:9px 12px;
+  background:#faf8f5; border:1.5px solid #e0dbd4; border-radius:10px;
+}
+.inp-file-name{ font-size:12px; color:#6b5e50; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.inp-file-remove{
+  background:#fef0e8; border:1px solid #f0c8a8; border-radius:6px;
+  padding:4px 5px; color:#d05a28; cursor:pointer; display:flex; align-items:center;
+}
+
+/* Textarea */
+.inp-textarea-wrap{ position:relative; }
+.inp-textarea-icon{
+  position:absolute; left:11px; top:12px; color:#d05a28; opacity:0.8; pointer-events:none;
+}
+.inp-textarea{
+  width:100%; padding:11px 12px 11px 34px;
+  border:1.5px solid #e0dbd4; border-radius:10px;
+  background:#faf8f5; color:#1a120b; font-size:13px;
+  font-family:'Inter',sans-serif; line-height:1.55; resize:vertical;
+  outline:none; transition:border-color 0.15s;
+}
+.inp-textarea:focus{ border-color:#d05a28; background:#fff; }
+.inp-textarea::placeholder{ color:#a89880; }
+
+/* Quick tips chips */
+.inp-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.inp-chip{
+  display:flex; align-items:center; gap:5px;
+  padding:6px 13px; border-radius:99px; border:1.5px solid #e0dbd4;
+  background:#faf8f5; color:#6b5e50; font-size:12.5px; font-weight:500;
+  cursor:pointer; transition:all 0.15s; font-family:'Inter',sans-serif;
+}
+.inp-chip:hover{ border-color:#d05a28; color:#d05a28; background:#fef6f1; }
+
+/* Run button — full width, label left, arrow right */
+.inp-run-btn{
+  width:100%; padding:14px 18px; border-radius:12px; border:none;
+  background:linear-gradient(135deg,#d05a28,#e8824a);
+  color:#fff; font-size:14.5px; font-weight:700;
+  cursor:pointer; display:flex; align-items:center; justify-content:space-between;
+  font-family:'Inter',sans-serif; transition:opacity 0.15s;
+  box-shadow:0 4px 18px rgba(208,90,40,0.38);
+}
+.inp-run-btn-left{ display:flex; align-items:center; gap:8px; }
+.inp-run-btn:hover:not(:disabled){ opacity:0.9; }
+.inp-run-btn:disabled{ background:#e0dbd4; color:#a89880; box-shadow:none; cursor:not-allowed; }
+
+/* Footer */
+.inp-left-footer{
+  padding:12px 24px; border-top:1px solid #f0ebe4;
+  display:flex; align-items:center; gap:14px;
+  font-size:11.5px; color:#8a7866;
+}
+
+/* Brush controls */
+.inp-brush-row{ display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; }
+.inp-brush-label{ font-size:11px; font-weight:700; color:#8a7866; text-transform:uppercase; letter-spacing:0.6px; }
+.inp-brush-val{ font-size:12px; font-weight:700; color:#d05a28; }
+.inp-slider{
+  width:100%; -webkit-appearance:none; height:4px; border-radius:4px; outline:none;
+  background:linear-gradient(to right, #d05a28 var(--pct,50%), #e0dbd4 var(--pct,50%));
+  cursor:pointer;
+}
+.inp-slider::-webkit-slider-thumb{
+  -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+  background:#d05a28; box-shadow:0 1px 4px rgba(0,0,0,0.2); cursor:pointer;
+}
+
+/* ── Right Card ── */
+.inp-right{
+  flex:1; background:#fff; border-radius:16px; border:1px solid #e0dbd4;
+  box-shadow:0 2px 16px rgba(0,0,0,0.07);
+  display:flex; flex-direction:column; overflow:hidden;
+  padding:20px 22px 18px;
+}
+
+/* Right header row */
+.inp-right-header{
+  display:flex; align-items:flex-start; justify-content:space-between;
+  margin-bottom:14px; flex-shrink:0; gap:16px;
+}
+.inp-right-header-left{ display:flex; flex-direction:column; }
+.inp-right-title-row{ display:flex; align-items:center; gap:8px; margin-bottom:3px; }
+.inp-right-icon{ color:#d05a28; display:flex; align-items:center; }
+.inp-right-title{ font-size:15px; font-weight:700; color:#1a120b; margin:0; }
+.inp-right-sub{ font-size:12px; color:#8a7866; margin:0; }
+
+/* Toolbar */
+.inp-toolbar{
+  display:flex; align-items:center; gap:0;
+  border:1.5px solid #e0dbd4; border-radius:10px; padding:4px;
+  background:#faf8f5; flex-shrink:0;
+}
+.inp-toolbar-group{ display:flex; align-items:center; gap:2px; }
+.inp-toolbar-sep{ width:1px; height:24px; background:#e0dbd4; margin:0 6px; }
+.inp-tool-btn{
+  width:36px; height:36px; border-radius:8px; border:none; background:transparent;
+  display:flex; align-items:center; justify-content:center;
+  color:#6b5e50; cursor:pointer; transition:all 0.12s;
+}
+.inp-tool-btn:hover{ background:#f0ece6; color:#1a120b; }
+.inp-tool-btn--active{
+  background:#fff; color:#d05a28;
+  box-shadow:0 1px 5px rgba(0,0,0,0.1), inset 0 0 0 1.5px #e0dbd4;
+}
+
+/* Canvas area */
+.inp-canvas-wrap{
+  flex:1; background:#faf8f5; border:1.5px solid #e0dbd4; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden; position:relative; min-height:0;
+}
+
+/* Empty state */
+.inp-empty{
+  display:flex; flex-direction:column; align-items:center; gap:12px;
+  text-align:center; padding:40px;
+}
+.inp-empty-icon-wrap{
+  width:84px; height:84px; border-radius:50%; background:#fef0e8;
+  display:flex; align-items:center; justify-content:center;
+}
+.inp-empty-title{ font-size:19px; font-weight:700; color:#1a120b; margin:0; letter-spacing:-0.3px; }
+.inp-empty-sub{ font-size:13px; color:#8a7866; margin:0; }
+
+/* Bottom bar */
+.inp-bottom{
+  display:flex; align-items:center; justify-content:space-between;
+  padding-top:14px; flex-shrink:0;
+}
+.inp-download-btn{
+  display:flex; align-items:center; gap:7px; padding:9px 20px;
+  border-radius:9px; border:1.5px solid #e0dbd4; background:#fff;
+  color:#5a5048; font-size:13px; font-weight:600; cursor:pointer;
+  font-family:'Inter',sans-serif; transition:all 0.15s;
+  box-shadow:0 1px 3px rgba(0,0,0,0.06);
+}
+.inp-download-btn:hover:not(:disabled){ border-color:#d05a28; color:#d05a28; }
+.inp-download-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+.inp-tip{ font-size:12px; color:#8a7866; display:flex; align-items:center; gap:5px; }
+
+/* Error */
+.inp-error{
+  display:flex; align-items:center; gap:8px; padding:9px 12px; margin-bottom:4px;
+  background:#fef0e8; border:1px solid #f0c8a8; border-radius:8px;
+  font-size:12.5px; color:#d05a28;
+}
+.inp-error-close{ margin-left:auto; background:none; border:none; cursor:pointer; color:#d05a28; font-size:14px; padding:0; }
+
+/* Mask badge */
+.inp-mask-badge{
+  font-size:11px; font-weight:600; color:#d05a28;
+  background:#fef0e8; border:1px solid #f0c8a8;
+  border-radius:6px; padding:3px 9px;
+}
+
+@keyframes inpSpin{ to{ transform:rotate(360deg) } }
 `;
 
-function useWarmTheme() {
+function useTheme() {
   useEffect(() => {
-    const id = "warm-theme-inpainting";
+    const id = "inp-theme-css";
     if (!document.getElementById(id)) {
       const el = document.createElement("style");
-      el.id = id;
-      el.textContent = WARM_CSS;
+      el.id = id; el.textContent = THEME_CSS;
       document.head.appendChild(el);
     }
   }, []);
 }
 
-/* ─── Icons ── */
-const SparkleIcon = ({ size = 18, color = "white" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-    <path d="M12 2L13.09 8.26L19 6L14.74 10.26L21 12L14.74 13.74L19 18L13.09 15.74L12 22L10.91 15.74L5 18L9.26 13.74L3 12L9.26 10.26L5 6L10.91 8.26L12 2Z" />
+/* ─── SVG Icons ─────────────────────────────────────────────────────────── */
+const BackIcon = () => (
+  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+    <path d="M19 12H5M12 5l-7 7 7 7"/>
+  </svg>
+);
+const LogoIcon = () => (
+  <svg width={17} height={17} viewBox="0 0 24 24" fill="white">
+    <path d="M12 2L13.09 8.26L19 6L14.74 10.26L21 12L14.74 13.74L19 18L13.09 15.74L12 22L10.91 15.74L5 18L9.26 13.74L3 12L9.26 10.26L5 6L10.91 8.26L12 2Z"/>
+  </svg>
+);
+const SunIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+    <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+    <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+  </svg>
+);
+const CloudUploadIcon = () => (
+  <svg width={38} height={38} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
+    <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+    <path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/>
+  </svg>
+);
+const SparkleIcon = () => (
+  <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2L13.09 8.26L19 6L14.74 10.26L21 12L14.74 13.74L19 18L13.09 15.74L12 22L10.91 15.74L5 18L9.26 13.74L3 12L9.26 10.26L5 6L10.91 8.26L12 2Z"/>
+  </svg>
+);
+const BrushIcon = ({ size = 17 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/>
+    <path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1 1 2.48 1.02 3.5 1.02 2.2 0 3.5-1.8 3.5-3.06 0-1.67-1.33-3-3-3z"/>
+  </svg>
+);
+const EraserIcon = () => (
+  <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/><path d="M6.0 11.0 l7 7"/>
+  </svg>
+);
+const HandIcon = () => (
+  <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M18 11V6a2 2 0 00-2-2v0a2 2 0 00-2 2v0"/>
+    <path d="M14 10V4a2 2 0 00-2-2v0a2 2 0 00-2 2v2"/>
+    <path d="M10 10.5V6a2 2 0 00-2-2v0a2 2 0 00-2 2v8"/>
+    <path d="M18 8a2 2 0 114 0v6a8 8 0 01-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 012.83-2.82L7 15"/>
+  </svg>
+);
+const UndoIcon = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 00-4-4H4"/>
+  </svg>
+);
+const RedoIcon = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 014-4h12"/>
+  </svg>
+);
+const ZoomIcon = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+  </svg>
+);
+const PenIcon = () => (
+  <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+  </svg>
+);
+const DownloadIcon = () => (
+  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+  </svg>
+);
+const InfoIcon = () => (
+  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+  </svg>
+);
+const ShieldIcon = () => (
+  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>
   </svg>
 );
 
-const BackArrow = () => (
-  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-    <path d="M19 12H5M12 5l-7 7 7 7" />
-  </svg>
-);
+/* ─── Canvas constants ───────────────────────────────────────────────────── */
+const MAX_W = 640;
+const MAX_H = 460;
 
-const MAX_W = 560;
-const MAX_H = 420;
-
+/* ════════════════════════════════════════════════════════════════════════════
+   Component
+   ════════════════════════════════════════════════════════════════════════════ */
 export default function Inpainting({ onBack }) {
-  useWarmTheme();
+  useTheme();
 
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedUrl,  setUploadedUrl]  = useState(null);
@@ -108,7 +401,7 @@ export default function Inpainting({ onBack }) {
   const toolRef          = useRef(tool);
   const brushRef         = useRef(brushSize);
 
-  useEffect(() => { toolRef.current = tool; },      [tool]);
+  useEffect(() => { toolRef.current = tool; },       [tool]);
   useEffect(() => { brushRef.current = brushSize; }, [brushSize]);
 
   useEffect(() => {
@@ -121,9 +414,7 @@ export default function Inpainting({ onBack }) {
     const mask = maskCanvasRef.current;
     if (!mask || !mask.width) return false;
     const data = mask.getContext("2d").getImageData(0, 0, mask.width, mask.height).data;
-    for (let i = 3; i < data.length; i += 4) {
-      if (data[i] > 10) return true;
-    }
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 10) return true;
     return false;
   }, []);
 
@@ -134,21 +425,15 @@ export default function Inpainting({ onBack }) {
     if (!display || !mask || !img) return;
     const ctx = display.getContext("2d");
     const w = display.width, h = display.height;
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
     ctx.drawImage(img, 0, 0, w, h);
     const off = document.createElement("canvas");
     off.width = w; off.height = h;
     const offCtx = off.getContext("2d");
-    offCtx.fillStyle = "#c0562a";
-    offCtx.fillRect(0, 0, w, h);
-    offCtx.globalCompositeOperation = "destination-in";
-    offCtx.drawImage(mask, 0, 0);
-    ctx.globalAlpha = 0.45;
-    ctx.globalCompositeOperation = "source-over";
-    ctx.drawImage(off, 0, 0);
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = "source-over";
+    offCtx.fillStyle = "#d05a28"; offCtx.fillRect(0, 0, w, h);
+    offCtx.globalCompositeOperation = "destination-in"; offCtx.drawImage(mask, 0, 0);
+    ctx.globalAlpha = 0.45; ctx.drawImage(off, 0, 0);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
   }, []);
 
   useEffect(() => {
@@ -162,7 +447,7 @@ export default function Inpainting({ onBack }) {
       const display = displayCanvasRef.current, mask = maskCanvasRef.current;
       if (!display || !mask) return;
       display.width = w; display.height = h;
-      mask.width = w; mask.height = h;
+      mask.width = w;    mask.height = h;
       display.getContext("2d").drawImage(img, 0, 0, w, h);
       mask.getContext("2d", { willReadFrequently: true }).clearRect(0, 0, w, h);
       setImgReady(true);
@@ -206,34 +491,28 @@ export default function Inpainting({ onBack }) {
     if (from.x !== to.x || from.y !== to.y) {
       ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
     }
-    ctx.restore();
-    redraw();
+    ctx.restore(); redraw();
   };
 
   const onMouseDown = (e) => {
-    if (!imgReady) return;
+    if (!imgReady || tool === "pan") return;
     e.preventDefault();
     isDrawing.current = true;
-    const pos = getPos(e);
-    lastPos.current = pos;
-    applyBrush(pos, pos);
-    setHasMask(checkHasMask());
+    const pos = getPos(e); lastPos.current = pos;
+    applyBrush(pos, pos); setHasMask(checkHasMask());
   };
-
   const onMouseMove = (e) => {
     const canvas = displayCanvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     setCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    if (!isDrawing.current || !imgReady) return;
+    if (!isDrawing.current || !imgReady || tool === "pan") return;
     e.preventDefault();
     const pos = getPos(e);
     applyBrush(lastPos.current || pos, pos);
-    lastPos.current = pos;
-    setHasMask(checkHasMask());
+    lastPos.current = pos; setHasMask(checkHasMask());
   };
-
-  const onMouseUp   = () => { isDrawing.current = false; };
+  const onMouseUp    = () => { isDrawing.current = false; };
   const onMouseLeave = () => { isDrawing.current = false; setCursorPos(null); };
 
   const handleFile = (file) => {
@@ -242,7 +521,6 @@ export default function Inpainting({ onBack }) {
     setUploadedFile(file); setUploadedUrl(URL.createObjectURL(file));
     setResultUrl(null); setImgReady(false); setHasMask(false); setError("");
   };
-
   const onDrop = useCallback((e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }, []);
 
   const reset = () => {
@@ -250,31 +528,35 @@ export default function Inpainting({ onBack }) {
     setUploadedFile(null); setUploadedUrl(null); setResultUrl(null);
     setImgReady(false); setHasMask(false); setError(""); setFillPrompt("");
   };
-
   const tryAgain = () => {
     setResultUrl(null);
     const mask = maskCanvasRef.current;
     if (mask) mask.getContext("2d").clearRect(0, 0, mask.width, mask.height);
     setHasMask(false); redraw();
   };
-
   const download = () => {
     if (!resultUrl) return;
     const a = document.createElement("a");
     a.href = resultUrl; a.download = `inpainted_${Date.now()}.png`; a.click();
   };
 
+  const undoMask = () => {
+    const mask = maskCanvasRef.current;
+    if (!mask) return;
+    mask.getContext("2d").clearRect(0, 0, mask.width, mask.height);
+    setHasMask(false); redraw();
+  };
+
   const runInpainting = async () => {
-    if (tool !== "erase" && !fillPrompt.trim()) { setError("Please describe what to place in the masked area."); return; }
-    if (!uploadedFile) { setError("Please upload an image first."); return; }
-    if (!hasMask) { setError("Please paint a mask on the image first."); return; }
+    if (!fillPrompt.trim()) { setError("Please describe what to place in the masked area."); return; }
+    if (!uploadedFile)      { setError("Please upload an image first."); return; }
+    if (!hasMask)           { setError("Please paint a mask on the image first."); return; }
     setError(""); setLoading(true);
     try {
       const maskCanvas = maskCanvasRef.current;
       const maskBlob = await new Promise(res => maskCanvas.toBlob(res, "image/png"));
       const maskFile = new File([maskBlob], "mask.png", { type: "image/png" });
-      const prompt = tool === "erase" ? "natural background, seamless fill" : fillPrompt.trim();
-      const data = await api.generate.inpaint({ image: uploadedFile, mask: maskFile, prompt });
+      const data = await api.generate.inpaint({ image: uploadedFile, mask: maskFile, prompt: fillPrompt.trim() });
       setResultUrl(data.generation?.image_url || data.imageUrl);
     } catch (err) {
       setError(err.message || "Inpainting failed. Please try again.");
@@ -283,217 +565,299 @@ export default function Inpainting({ onBack }) {
     }
   };
 
-  return (
-    <div className="gen-root">
-      {/* ── Navbar ── */}
-      <nav className="gen-nav" style={{ display: "flex", alignItems: "center", padding: "0 28px", height: 60, flexShrink: 0, gap: 12 }}>
-        {/* Back button */}
-        <button onClick={onBack} style={{
-          display: "flex", alignItems: "center", gap: 6,
-          padding: "7px 14px", borderRadius: 99, border: "1.5px solid #d4c9b8",
-          background: "transparent", color: "#7a6a55", fontSize: 13, fontWeight: 600,
-          cursor: "pointer", fontFamily: "'DM Sans',sans-serif", transition: "all 0.15s", flexShrink: 0,
-        }}
-          onMouseEnter={e => { e.currentTarget.style.background = "#ede8df"; e.currentTarget.style.color = "#2a1f12"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#7a6a55"; }}
-        >
-          <BackArrow /> Back
-        </button>
+  const TIPS = [
+    { icon: "+", label: "Add object" },
+    { icon: "◎", label: "Change color" },
+    { icon: "⊘", label: "Remove background" },
+  ];
 
-        <div className="gen-logo" style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <div className="gen-logo-icon" style={{ width: 30, height: 30, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <SparkleIcon size={14} />
+  /* ════════════════════════════════════════════════════════════════════════
+     Render
+     ════════════════════════════════════════════════════════════════════════ */
+  return (
+    <div className="inp-root">
+
+      {/* ── Navbar ── */}
+      <nav className="inp-nav">
+        <div className="inp-nav-left">
+          <button className="inp-back-btn" onClick={onBack}><BackIcon /> Back</button>
+          <div className="inp-logo">
+            <div className="inp-logo-icon"><LogoIcon /></div>
+            ImageGen
           </div>
-          ImageGen
         </div>
 
-        <div className="gen-nav-links" style={{ display: "flex", alignItems: "center", gap: 28, marginLeft: "auto" }}>
-          {["Features", "Pricing", "Docs"].map(l => (
-            <span key={l} className="gen-nav-link" style={{ fontSize: 13, cursor: "pointer", fontWeight: 500 }}>{l}</span>
+        <div className="inp-nav-center">
+          {["Modes", "Gallery", "Pricing", "Docs"].map(l => (
+            <span key={l} className="inp-nav-link">{l}</span>
           ))}
         </div>
-        <button className="gen-btn-primary" style={{ padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none" }}>
-          Get Started
-        </button>
+
+        <div className="inp-nav-right">
+          <span className="inp-theme-icon"><SunIcon /></span>
+          <button className="inp-get-started-btn">Get Started</button>
+        </div>
       </nav>
 
-      <div className="gen-body" style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      {/* ── Body ── */}
+      <div className="inp-body">
 
-        {/* ── Left Panel ── */}
-        <div className="gen-panel gen-panel--left" style={{ width: 300, flexShrink: 0, overflowY: "auto", padding: "24px 22px", display: "flex", flexDirection: "column", gap: 0, scrollbarWidth: "thin" }}>
+        {/* ── Left Card ── */}
+        <div className="inp-left">
 
-          <div className="gen-panel-header" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, paddingBottom: 16 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg,#3aab8a,#2d9070)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(58,171,138,0.3)" }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
-              </svg>
+          <div className="inp-left-header">
+            <div className="inp-left-icon"><PenIcon /></div>
+            <div>
+              <h2 className="inp-left-title">Inpainting</h2>
+              <p className="inp-left-sub">Edit specific parts of your image with precision</p>
             </div>
-            <h2 className="gen-panel-title" style={{ fontSize: 18, margin: 0 }}>Inpainting</h2>
           </div>
 
-          {error && (
-            <div className="gen-error" style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", marginBottom: 14, fontSize: 12.5 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              {error}
-              <button className="gen-error-close" onClick={() => setError("")} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 14, padding: 0 }}>✕</button>
-            </div>
-          )}
+          <div className="inp-divider" />
 
-          {/* Upload */}
-          <div className="gen-field" style={{ marginBottom: 16 }}>
-            <label className="gen-label" style={{ display: "block", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 8 }}>
-              Upload Image <span className="gen-required">*</span>
-            </label>
-            {!uploadedUrl ? (
-              <div className={`gen-dropzone${dragOver ? " gen-dropzone--active" : ""}`}
-                onClick={() => fileInputRef.current?.click()}
-                onDrop={onDrop}
-                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                style={{ border: "2px dashed #d4c9b8", borderRadius: 12, padding: "24px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer", textAlign: "center" }}
-              >
-                <div className="gen-dropzone-icon">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                </div>
-                <p className="gen-dropzone-text" style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Drag & drop or click to upload</p>
-                <p className="gen-dropzone-sub" style={{ margin: 0, fontSize: 12 }}>PNG, JPG up to 10MB</p>
-                <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
-              </div>
-            ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#faf8f4", border: "1px solid #e0d8cc", borderRadius: 8 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c0562a" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-                <span style={{ fontSize: 12, color: "#7a6a55", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{uploadedFile?.name}</span>
-                <button className="gen-upload-remove" onClick={reset} style={{ background: "#fdf5f0", border: "1px solid #f4c4a8", borderRadius: 7, padding: "5px", color: "#c0562a", cursor: "pointer", display: "flex" }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
+          <div className="inp-sections">
+
+            {error && (
+              <div className="inp-error">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                {error}
+                <button className="inp-error-close" onClick={() => setError("")}>✕</button>
               </div>
             )}
-          </div>
 
-          {/* Brush size */}
-          {uploadedUrl && (
-            <div className="gen-field" style={{ marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                <label className="gen-label" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.7px", margin: 0 }}>Brush Size</label>
-                <span className="gen-strength-val" style={{ fontSize: 12, fontWeight: 700 }}>{brushSize}px</span>
+            {/* Step 1 */}
+            <div>
+              <div className="inp-step-label">
+                1. Upload Image <span className="inp-step-required">*</span>
               </div>
-              <input type="range" min={4} max={80} step={2} value={brushSize}
-                onChange={e => setBrushSize(Number(e.target.value))}
-                className="gen-slider"
-                style={{ width: "100%", "--slider-val": `${((brushSize - 4) / 76) * 100}%` }} />
+              {!uploadedUrl ? (
+                <div
+                  className={`inp-dropzone${dragOver ? " inp-dropzone--active" : ""}`}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDrop={onDrop}
+                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                >
+                  <div className="inp-dropzone-icon"><CloudUploadIcon /></div>
+                  <p className="inp-dropzone-title">Drag &amp; drop or click to upload</p>
+                  <p className="inp-dropzone-hint">PNG, JPG up to 10MB</p>
+                  <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }}
+                    onChange={e => handleFile(e.target.files[0])} />
+                </div>
+              ) : (
+                <div className="inp-file-row">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d05a28" strokeWidth="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  </svg>
+                  <span className="inp-file-name">{uploadedFile?.name}</span>
+                  <button className="inp-file-remove" onClick={reset}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
-          )}
 
-          {/* Tool selector */}
-          {uploadedUrl && (
-            <div className="gen-field" style={{ marginBottom: 16 }}>
-              <label className="gen-label" style={{ display: "block", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 8 }}>Brush Tool</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                {[{ key: "paint", label: "🖌️ Paint Mask" }, { key: "erase", label: "✏️ Erase" }].map(t => (
-                  <button key={t.key}
-                    onClick={() => { setTool(t.key); toolRef.current = t.key; }}
-                    className={`gen-chip${tool === t.key ? " gen-chip--active" : ""}`}
-                    style={{ padding: "7px 14px", borderRadius: 99, fontSize: 12.5, fontWeight: tool === t.key ? 700 : 500, cursor: "pointer", border: "1.5px solid", fontFamily: "'DM Sans',sans-serif", transition: "all 0.15s" }}>
-                    {t.label}
+            {/* Brush controls */}
+            {uploadedUrl && (
+              <div>
+                <div className="inp-brush-row">
+                  <span className="inp-brush-label">Brush Size</span>
+                  <span className="inp-brush-val">{brushSize}px</span>
+                </div>
+                <input
+                  type="range" min={4} max={80} step={2} value={brushSize}
+                  onChange={e => setBrushSize(Number(e.target.value))}
+                  className="inp-slider"
+                  style={{ "--pct": `${((brushSize - 4) / 76) * 100}%` }}
+                />
+              </div>
+            )}
+
+            {/* Step 2 */}
+            <div>
+              <div className="inp-step-label">
+                2. Describe Edit <span className="inp-step-required">*</span>
+              </div>
+              <p className="inp-step-sub">Describe what to place in the masked area</p>
+              <div className="inp-textarea-wrap">
+                <span className="inp-textarea-icon"><SparkleIcon /></span>
+                <textarea
+                  className="inp-textarea"
+                  rows={3}
+                  placeholder={"e.g. 'a red sports car', 'blue sky'"}
+                  value={fillPrompt}
+                  onChange={e => setFillPrompt(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div>
+              <div className="inp-step-label">3. Quick Tips</div>
+              <div className="inp-chips">
+                {TIPS.map(tip => (
+                  <button
+                    key={tip.label}
+                    className="inp-chip"
+                    onClick={() => setFillPrompt(tip.label.toLowerCase())}
+                  >
+                    <span style={{ fontSize: 13 }}>{tip.icon}</span>
+                    {tip.label}
                   </button>
                 ))}
               </div>
             </div>
-          )}
 
-          {/* Fill With */}
-          {tool !== "erase" && (
-            <div className="gen-field" style={{ marginBottom: 16 }}>
-              <label className="gen-label" style={{ display: "block", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 8 }}>
-                Fill With <span className="gen-required">*</span>
-              </label>
-              <textarea className="gen-textarea" rows={3}
-                placeholder={"Describe what to place in the masked area…\ne.g. 'a red sports car', 'blue sky'"}
-                value={fillPrompt} onChange={e => setFillPrompt(e.target.value)}
-                style={{ width: "100%", padding: "11px 14px", borderRadius: 10, fontSize: 13, lineHeight: 1.6, resize: "vertical", outline: "none" }} />
-            </div>
-          )}
+            {/* Run button */}
+            <button className="inp-run-btn" onClick={runInpainting} disabled={loading}>
+              {loading ? (
+                <>
+                  <div className="inp-run-btn-left">
+                    <span style={{ width: 15, height: 15, border: "2.5px solid rgba(255,255,255,0.35)", borderTopColor: "#fff", borderRadius: "50%", display: "inline-block", animation: "inpSpin 0.7s linear infinite" }} />
+                    Running…
+                  </div>
+                  <span />
+                </>
+              ) : (
+                <>
+                  <div className="inp-run-btn-left">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                      <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                    </svg>
+                    Run Inpainting
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                  </svg>
+                </>
+              )}
+            </button>
 
-          {tool === "erase" && uploadedUrl && (
-            <div style={{ padding: "10px 14px", background: "#fdf5f0", border: "1px solid #f4c4a8", borderRadius: 8, fontSize: 12, color: "#c0562a", marginBottom: 16 }}>
-              ✏️ Paint over the area to remove — the AI will fill it with natural background.
-            </div>
-          )}
-
-          {/* Run button */}
-          <button className="gen-generate-btn"
-            style={{
-              width: "100%", padding: "13px", borderRadius: 12, border: "none",
-              background: tool === "erase"
-                ? "linear-gradient(135deg,#dc2626,#b91c1c)"
-                : "linear-gradient(135deg,#c0562a,#e08050)",
-              color: "#fff", fontSize: 14, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8,
-              fontFamily: "'DM Sans',sans-serif", transition: "all 0.2s",
-              boxShadow: "0 4px 20px rgba(192,86,42,0.3)",
-            }}
-            onClick={runInpainting} disabled={loading}>
-            {loading ? (
-              <><span style={{ width: 14, height: 14, border: "2.5px solid rgba(255,255,255,0.35)", borderTopColor: "#fff", borderRadius: "50%", animation: "genSpin 0.7s linear infinite", display: "inline-block" }} />{tool === "erase" ? "Removing…" : "Running Inpainting…"}</>
-            ) : tool === "erase" ? (
-              <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>Remove Area</>
-            ) : (
-              <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Run Inpainting</>
-            )}
-          </button>
-
-          {uploadedUrl && imgReady && !hasMask && !loading && !resultUrl && (
-            <p style={{ fontSize: 12, color: "#c0562a", marginTop: 10, textAlign: "center", opacity: 0.75 }}>
-              👆 Paint over the area you want to replace on the canvas →
-            </p>
-          )}
-        </div>
-
-        {/* ── Right Panel ── */}
-        <div className="gen-panel gen-panel--right" style={{ flex: 1, background: "#faf8f4", display: "flex", flexDirection: "column", padding: "24px 28px", overflow: "hidden" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <h2 className="gen-preview-title" style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-              {resultUrl ? "Inpainting Result" : "Paint Mask on Image"}
-            </h2>
-            {hasMask && !resultUrl && (
-              <span style={{ fontSize: 11, color: "#c0562a", background: "#fdf5f0", border: "1px solid #f4c4a8", borderRadius: 6, padding: "3px 9px", fontWeight: 600 }}>
-                Mask painted ✓
-              </span>
-            )}
           </div>
 
-          <div className="gen-preview-box" style={{ flex: 1, borderRadius: 16, border: "1.5px solid #e0d8cc", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", minHeight: 0, position: "relative" }}>
+          <div className="inp-left-footer">
+            <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <ShieldIcon /> AI-powered
+            </span>
+            <span style={{ color: "#d0cbc4" }}>•</span>
+            <span>Non-destructive</span>
+          </div>
+        </div>{/* /left card */}
+
+        {/* ── Right Card ── */}
+        <div className="inp-right">
+
+          <div className="inp-right-header">
+            <div className="inp-right-header-left">
+              <div className="inp-right-title-row">
+                <span className="inp-right-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                  </svg>
+                </span>
+                <p className="inp-right-title">
+                  {resultUrl ? "Inpainting Result" : "Paint Mask on Image"}
+                </p>
+                {hasMask && !resultUrl && (
+                  <span className="inp-mask-badge">Mask painted ✓</span>
+                )}
+              </div>
+              <p className="inp-right-sub">Upload an image and paint over the area you want to replace</p>
+            </div>
+
+            {/* Toolbar */}
+            <div className="inp-toolbar">
+              <div className="inp-toolbar-group">
+                <button
+                  className={`inp-tool-btn${tool === "paint" ? " inp-tool-btn--active" : ""}`}
+                  title="Paint brush" onClick={() => setTool("paint")}
+                ><BrushIcon /></button>
+                <button
+                  className={`inp-tool-btn${tool === "erase" ? " inp-tool-btn--active" : ""}`}
+                  title="Eraser" onClick={() => setTool("erase")}
+                ><EraserIcon /></button>
+                <button
+                  className={`inp-tool-btn${tool === "pan" ? " inp-tool-btn--active" : ""}`}
+                  title="Pan" onClick={() => setTool("pan")}
+                ><HandIcon /></button>
+              </div>
+              <div className="inp-toolbar-sep" />
+              <div className="inp-toolbar-group">
+                <button className="inp-tool-btn" title="Clear mask" onClick={undoMask}><UndoIcon /></button>
+                <button className="inp-tool-btn" title="Redo"><RedoIcon /></button>
+              </div>
+              <div className="inp-toolbar-sep" />
+              <div className="inp-toolbar-group">
+                <button className="inp-tool-btn" title="Zoom"><ZoomIcon /></button>
+              </div>
+            </div>
+          </div>
+
+          {/* Canvas */}
+          <div className="inp-canvas-wrap">
 
             {!uploadedUrl && !loading && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center", padding: 40 }}>
-                <div style={{ color: "#c0562a", opacity: 0.5 }}>
-                  <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <div className="inp-empty">
+                <div className="inp-empty-icon-wrap">
+                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#d05a28" strokeWidth="1.4">
+                    <path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/>
+                    <path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1 1 2.48 1.02 3.5 1.02 2.2 0 3.5-1.8 3.5-3.06 0-1.67-1.33-3-3-3z"/>
+                  </svg>
                 </div>
-                <p style={{ fontSize: 16, fontWeight: 700, color: "#2a1f12", margin: 0, fontFamily: "'Playfair Display',serif" }}>Upload an image to get started</p>
-                <p style={{ fontSize: 13, color: "#a89880", margin: 0 }}>Then paint over the area you want to replace</p>
+                <p className="inp-empty-title">Upload an image to get started</p>
+                <p className="inp-empty-sub">Then paint over the area you want to replace</p>
               </div>
             )}
 
             {loading && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, textAlign: "center" }}>
-                <div style={{ width: 48, height: 48, border: "3px solid #e0d8cc", borderTopColor: "#c0562a", borderRadius: "50%", animation: "genSpin 0.9s linear infinite" }} />
-                <p style={{ fontSize: 14, fontWeight: 600, color: "#2a1f12", margin: 0 }}>Running inpainting…</p>
-                <p style={{ fontSize: 12, color: "#a89880", margin: 0 }}>This may take 10–20 seconds</p>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+                <div style={{ width: 48, height: 48, border: "3px solid #e0dbd4", borderTopColor: "#d05a28", borderRadius: "50%", animation: "inpSpin 0.9s linear infinite" }} />
+                <p style={{ fontSize: 14, fontWeight: 600, color: "#1a120b", margin: 0 }}>Running inpainting…</p>
+                <p style={{ fontSize: 12, color: "#8a7866", margin: 0 }}>This may take 10–20 seconds</p>
               </div>
             )}
 
             <canvas ref={maskCanvasRef} style={{ display: "none" }} />
 
-            <div style={{ display: (uploadedUrl && !loading && !resultUrl) ? "inline-block" : "none", position: "relative", borderRadius: 10, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.2)", cursor: "none", userSelect: "none" }}
-              onMouseLeave={onMouseLeave}>
-              <canvas ref={displayCanvasRef} style={{ display: "block" }}
+            <div
+              style={{
+                display: (uploadedUrl && !loading && !resultUrl) ? "inline-block" : "none",
+                position: "relative", borderRadius: 10, overflow: "hidden",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.14)",
+                cursor: tool === "pan" ? "grab" : "none",
+                userSelect: "none",
+              }}
+              onMouseLeave={onMouseLeave}
+            >
+              <canvas
+                ref={displayCanvasRef}
+                style={{ display: "block" }}
                 onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}
-                onTouchStart={onMouseDown} onTouchMove={onMouseMove} onTouchEnd={onMouseUp} />
-              {cursorPos && imgReady && (
-                <div style={{ position: "absolute", left: cursorPos.x - brushSize / 2, top: cursorPos.y - brushSize / 2, width: brushSize, height: brushSize, border: `2px solid ${tool === "erase" ? "#dc2626" : "#c0562a"}`, borderRadius: "50%", pointerEvents: "none", boxShadow: `0 0 8px ${tool === "erase" ? "rgba(220,38,38,0.4)" : "rgba(192,86,42,0.4)"}` }} />
+                onTouchStart={onMouseDown} onTouchMove={onMouseMove} onTouchEnd={onMouseUp}
+              />
+              {cursorPos && imgReady && tool !== "pan" && (
+                <div style={{
+                  position: "absolute",
+                  left: cursorPos.x - brushSize / 2,
+                  top:  cursorPos.y - brushSize / 2,
+                  width: brushSize, height: brushSize,
+                  border: `2px solid ${tool === "erase" ? "#ef4444" : "#d05a28"}`,
+                  borderRadius: "50%", pointerEvents: "none",
+                  boxShadow: `0 0 8px ${tool === "erase" ? "rgba(239,68,68,0.4)" : "rgba(208,90,40,0.4)"}`,
+                }} />
               )}
               {imgReady && !hasMask && (
-                <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "rgba(42,31,18,0.8)", backdropFilter: "blur(8px)", borderRadius: 10, padding: "8px 16px", fontSize: 13, color: "white", pointerEvents: "none", whiteSpace: "nowrap" }}>
+                <div style={{
+                  position: "absolute", top: "50%", left: "50%",
+                  transform: "translate(-50%,-50%)",
+                  background: "rgba(26,18,11,0.75)", backdropFilter: "blur(8px)",
+                  borderRadius: 10, padding: "8px 16px",
+                  fontSize: 13, color: "white", pointerEvents: "none", whiteSpace: "nowrap",
+                }}>
                   🖌️ Paint over area to replace
                 </div>
               )}
@@ -501,29 +865,37 @@ export default function Inpainting({ onBack }) {
 
             {!loading && resultUrl && (
               <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <img src={resultUrl} alt="Inpainted result" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} />
+                <img src={resultUrl} alt="Inpainted result"
+                  style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} />
               </div>
             )}
           </div>
 
-          <div style={{ display: "flex", gap: 8, paddingTop: 14 }}>
-            <button className="gen-action-btn" onClick={download} disabled={!resultUrl}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 99, fontSize: 13, fontWeight: 600, cursor: resultUrl ? "pointer" : "not-allowed", border: "1.5px solid #e0d8cc", background: "#fff", color: "#7a6a55", fontFamily: "'DM Sans',sans-serif", transition: "all 0.15s" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-              Download
-            </button>
-            {resultUrl && (
-              <button className="gen-action-btn" onClick={tryAgain}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 99, fontSize: 13, fontWeight: 600, cursor: "pointer", border: "1.5px solid #e0d8cc", background: "#fff", color: "#7a6a55", fontFamily: "'DM Sans',sans-serif", transition: "all 0.15s" }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15M1 20v-6h6"/></svg>
-                Try Again
+          {/* Bottom bar */}
+          <div className="inp-bottom">
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="inp-download-btn" onClick={download} disabled={!resultUrl}>
+                <DownloadIcon /> Download
               </button>
-            )}
+              {resultUrl && (
+                <button className="inp-download-btn" onClick={tryAgain}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 4v6h-6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15M1 20v-6h6"/>
+                  </svg>
+                  Try Again
+                </button>
+              )}
+            </div>
+            <div className="inp-tip">
+              <InfoIcon />
+              Tip: Use the brush to paint over the area you want to edit
+            </div>
           </div>
-        </div>
-      </div>
 
-      <style>{`@keyframes genSpin{to{transform:rotate(360deg)}}`}</style>
+        </div>{/* /right card */}
+      </div>{/* /body */}
+
+      <style>{`@keyframes inpSpin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
