@@ -1,83 +1,183 @@
-import { useNavigate } from 'react-router-dom'
+/**
+ * Navbar.jsx
+ *
+ * Two exported components:
+ *   <LandingNavbar  onGetStarted={fn} />
+ *   <DashboardNavbar user={user} onLogout={fn} currentPage={string} onNavigate={fn} />
+ *
+ * DashboardNavbar replaces the plain "S" circle with <UserDropdown>,
+ * showing name, credits, generated-image count, and a logout button
+ * that calls onLogout() → App.jsx clears user state → back to landing.
+ */
 
+import { useState } from "react";
+import UserDropdown from "./UserDropdown.jsx";
+
+/* ─── Injected CSS ─────────────────────────────────────────────────────────── */
+const NAV_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ── Shared nav shell ── */
+.nav-root{
+  display:grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items:center; height:60px; padding:0 28px;
+  background:#eeecea; border-bottom:1px solid #e0dbd4;
+  flex-shrink:0; position:relative; z-index:100;
+  font-family:'Inter',sans-serif;
+}
+.nav-left  { display:flex; align-items:center; gap:10px; }
+.nav-center{ display:flex; align-items:center; gap:32px; justify-content:center; }
+.nav-right { display:flex; align-items:center; gap:14px; justify-content:flex-end; }
+
+/* ── Logo ── */
+.nav-logo{
+  display:flex; align-items:center; gap:8px;
+  font-weight:700; font-size:15px; color:#1a120b;
+  cursor:pointer; text-decoration:none;
+}
+.nav-logo-icon{
+  width:32px; height:32px; border-radius:9px;
+  background:linear-gradient(135deg,#d05a28,#e8824a);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 2px 8px rgba(208,90,40,0.3);
+}
+
+/* ── Nav links ── */
+.nav-link{
+  font-size:14px; font-weight:500; color:#5a5048;
+  cursor:pointer; transition:color 0.15s;
+  background:none; border:none; font-family:'Inter',sans-serif;
+  padding:0;
+}
+.nav-link:hover{ color:#1a120b; }
+.nav-link--active{ color:#d05a28; }
+
+/* ── Back button (mode pages) ── */
+.nav-back-btn{
+  display:flex; align-items:center; gap:6px; padding:6px 14px;
+  border-radius:99px; border:1.5px solid #d6d0c8; background:#fff;
+  color:#5a5048; font-size:13px; font-weight:600; cursor:pointer;
+  font-family:'Inter',sans-serif; transition:all 0.15s;
+  box-shadow:0 1px 3px rgba(0,0,0,0.07);
+}
+.nav-back-btn:hover{ background:#f5f3f0; color:#1a120b; }
+
+/* ── CTA button (landing) ── */
+.nav-cta-btn{
+  padding:8px 22px; border-radius:99px; border:none;
+  background:linear-gradient(135deg,#d05a28,#e8824a);
+  color:#fff; font-size:13.5px; font-weight:600; cursor:pointer;
+  font-family:'Inter',sans-serif; transition:opacity 0.15s;
+  box-shadow:0 3px 12px rgba(208,90,40,0.35);
+}
+.nav-cta-btn:hover{ opacity:0.88; }
+
+/* ── Theme toggle icon ── */
+.nav-theme-icon{
+  cursor:pointer; color:#5a5048;
+  display:flex; align-items:center; transition:color 0.15s;
+}
+.nav-theme-icon:hover{ color:#1a120b; }
+`;
+
+function injectNavCSS() {
+  const id = "nav-styles";
+  if (!document.getElementById(id)) {
+    const el = document.createElement("style");
+    el.id = id; el.textContent = NAV_CSS;
+    document.head.appendChild(el);
+  }
+}
+
+/* ── Icons ── */
 const LogoIcon = () => (
-  <div className="navbar-logo-icon">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-      <polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9" />
-    </svg>
-  </div>
-)
-
-const Icon = ({ path, size = 12 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d={path} />
+  <svg width={17} height={17} viewBox="0 0 24 24" fill="white">
+    <path d="M12 2L13.09 8.26L19 6L14.74 10.26L21 12L14.74 13.74L19 18L13.09 15.74L12 22L10.91 15.74L5 18L9.26 13.74L3 12L9.26 10.26L5 6L10.91 8.26L12 2Z"/>
   </svg>
-)
+);
+const BackIcon = () => (
+  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+    <path d="M19 12H5M12 5l-7 7 7 7"/>
+  </svg>
+);
+const SunIcon = () => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="5"/>
+    <line x1="12" y1="1" x2="12" y2="3"/>  <line x1="12" y1="21" x2="12" y2="23"/>
+    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+    <line x1="1" y1="12" x2="3" y2="12"/>  <line x1="21" y1="12" x2="23" y2="12"/>
+    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+  </svg>
+);
 
-/* ── Landing Navbar ── */
-export function LandingNavbar({ onSignIn }) {
+const NAV_LINKS = ["Modes", "Gallery", "Pricing", "Docs"];
+
+/* ════════════════════════════════════════════════════════════════════════════
+   LandingNavbar  (unauthenticated)
+   ════════════════════════════════════════════════════════════════════════════ */
+export function LandingNavbar({ onGetStarted }) {
+  injectNavCSS();
   return (
-    <nav className="navbar">
-      <div className="navbar-logo">
-        <LogoIcon />
-        <span className="navbar-logo-text">ImageGen</span>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-        {['Features', 'Pricing', 'Gallery', 'Docs'].map(l => (
-          <span key={l} style={{ fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer', transition: 'color .18s' }}
-            onMouseEnter={e => e.target.style.color = 'var(--text-primary)'}
-            onMouseLeave={e => e.target.style.color = 'var(--text-muted)'}>
-            {l}
-          </span>
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <button className="btn-ghost" onClick={onSignIn} style={{ padding: '7px 18px', fontSize: 12 }}>Sign in</button>
-        <button className="btn-primary" onClick={onSignIn} style={{ padding: '7px 18px', fontSize: 12 }}>Get started</button>
-      </div>
-    </nav>
-  )
-}
-
-/* ── Dashboard Navbar ── */
-export function DashboardNavbar({ active, setActive }) {
-  const navigate = useNavigate()
-
-  const navItems = [
-    { label: 'Dashboard', path: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
-    { label: 'Generate',  path: 'M12 2l3 7h7l-6 5 2 7-6-4-6 4 2-7-6-5h7z' },
-    { label: 'Gallery',   path: 'M3 3h18v18H3zM8.5 8.5m-1.5 0a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0M21 15l-5-5L5 21' },
-    { label: 'Buy Credits', path: 'M12 2a10 10 0 100 20A10 10 0 0012 2zm0 6v4m0 4h.01' },
-    { label: 'Profile',   path: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z' },
-  ]
-
-  return (
-    <nav style={{ display: 'flex', alignItems: 'center', height: 52, background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 100 }}>
-      <div className="navbar-logo" style={{ padding: '0 18px', borderRight: '1px solid var(--border)', height: '100%', alignItems: 'center', cursor: 'pointer' }} onClick={() => navigate('/')}>
-        <LogoIcon />
-        <span className="navbar-logo-text" style={{ fontSize: 15 }}>ImageGen</span>
-      </div>
-
-      <div className="dash-tabs">
-        {navItems.map(n => (
-          <button key={n.label} className={`dash-tab${active === n.label ? ' active' : ''}`} onClick={() => setActive(n.label)}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={n.path}/></svg>
-            {n.label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, paddingRight: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 12px', borderRadius: 99, border: '1px solid var(--accent-border)', background: 'var(--accent-dim)', fontSize: 11, color: 'var(--accent)', fontWeight: 500 }}>
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"/></svg>
-          120 credits
+    <nav className="nav-root">
+      <div className="nav-left">
+        <div className="nav-logo">
+          <div className="nav-logo-icon"><LogoIcon /></div>
+          ImageGen
         </div>
-        <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#fff' }}>U</div>
+      </div>
+
+      <div className="nav-center">
+        {NAV_LINKS.map(l => (
+          <button key={l} className="nav-link">{l}</button>
+        ))}
+      </div>
+
+      <div className="nav-right">
+        <span className="nav-theme-icon"><SunIcon /></span>
+        <button className="nav-cta-btn" onClick={onGetStarted}>Get Started</button>
       </div>
     </nav>
-  )
+  );
 }
 
-export default DashboardNavbar
+/* ════════════════════════════════════════════════════════════════════════════
+   DashboardNavbar  (authenticated — mode picker + sub-pages)
+   ════════════════════════════════════════════════════════════════════════════ */
+export function DashboardNavbar({ user, onLogout, currentPage, onNavigate, onBack }) {
+  injectNavCSS();
+
+  /* Show a back button on sub-pages (anything that isn't the mode picker) */
+  const isSubPage = currentPage && currentPage !== "mode-picker";
+
+  return (
+    <nav className="nav-root">
+      <div className="nav-left">
+        {isSubPage && onBack && (
+          <button className="nav-back-btn" onClick={onBack}>
+            <BackIcon /> Back
+          </button>
+        )}
+        <div className="nav-logo" onClick={() => onNavigate?.("mode-picker")}>
+          <div className="nav-logo-icon"><LogoIcon /></div>
+          ImageGen
+        </div>
+      </div>
+
+      <div className="nav-center">
+        {NAV_LINKS.map(l => (
+          <button key={l} className="nav-link">{l}</button>
+        ))}
+      </div>
+
+      <div className="nav-right">
+        <span className="nav-theme-icon"><SunIcon /></span>
+        {/* ── User dropdown replaces the plain avatar circle ── */}
+        <UserDropdown user={user} onLogout={onLogout} />
+      </div>
+    </nav>
+  );
+}
+
+/* Default export is the Dashboard variant for convenience */
+export default DashboardNavbar;

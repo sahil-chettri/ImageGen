@@ -1,15 +1,20 @@
--- Run once to initialise the database schema
+-- init.sql — run once to initialise the base schema
+-- pgvector tables are in pgvector_setup.sql (run that second)
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE IF NOT EXISTS users (
-  id          UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        VARCHAR(100)  NOT NULL,
-  email       VARCHAR(255)  UNIQUE NOT NULL,
-  password    TEXT          NOT NULL,          -- bcrypt hash
-  credits     INTEGER       NOT NULL DEFAULT 10,
-  created_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+  id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            VARCHAR(100)  NOT NULL,
+  email           VARCHAR(255)  UNIQUE NOT NULL,
+  password        TEXT          NOT NULL,          -- bcrypt hash
+  credits         INTEGER       NOT NULL DEFAULT 10,
+  -- BUG FIX: plan column was missing but creditsController reads/writes it
+  plan            VARCHAR(50)   DEFAULT NULL,
+  -- BUG FIX: email_verified flag needed by OTP auth flow in LoginModal
+  email_verified  BOOLEAN       NOT NULL DEFAULT FALSE,
+  created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 -- Auto-update updated_at on every row change

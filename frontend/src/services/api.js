@@ -71,6 +71,17 @@ export const api = {
     image: (formData) =>
       request('/generate/image', { method: 'POST', body: formData }),
 
+    // ── FIX: was missing — caused "api.generate.inpaint is not a function" ──
+    inpaint: ({ image, mask, prompt, negativePrompt = '', ratio = '1:1' }) => {
+      const form = new FormData();
+      form.append('image',          image);
+      form.append('mask',           mask);
+      form.append('prompt',         prompt);
+      form.append('negativePrompt', negativePrompt);
+      form.append('ratio',          ratio);
+      return request('/generate/inpaint', { method: 'POST', body: form });
+    },
+
     get: (id) => request(`/generate/${id}`),
   },
 

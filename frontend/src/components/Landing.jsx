@@ -44,7 +44,7 @@ const AVATARS = [
 ];
 
 /* ═══════════════════════════════════════════════════════════ */
-export default function Landing({ onEnter }) {
+export default function Landing({ onGetStarted }) {
   const featRefs = useRef([]);
 
   /* scroll-triggered feature cards */
@@ -275,8 +275,8 @@ export default function Landing({ onEnter }) {
           ))}
         </ul>
         <div className="ig-nav-actions">
-          <button className="ig-btn-ghost" onClick={onEnter}>Log in</button>
-          <button className="ig-btn-pill"  onClick={onEnter}>Sign up free</button>
+          
+          <button className="ig-btn-pill" onClick={onGetStarted}>Get Started</button>
         </div>
       </nav>
 
@@ -318,6 +318,15 @@ export default function Landing({ onEnter }) {
           Text to image, style transfer, inpainting — ready to propel your creativity forward.
         </p>
 
+        {/* inline hero CTA */}
+        <button
+          className="ig-btn-cta"
+          onClick={onGetStarted}
+          style={{ marginBottom: "52px", animation: "ig-fadeUp 0.8s 0.7s ease both" }}
+        >
+          Get Started
+        </button>
+
         {/* mosaic strip */}
         <div className="ig-mosaic">
           <div className="ig-mosaic-track">
@@ -341,7 +350,7 @@ export default function Landing({ onEnter }) {
           <span className="ig-cta-note">
             <span className="ig-cta-arrow">↗</span> It's free
           </span>
-          <button className="ig-btn-cta" onClick={onEnter}>Get Started</button>
+          <button className="ig-btn-cta" onClick={onGetStarted}>Get Started</button>
           <span className="ig-cta-note">No credit card</span>
         </div>
 
@@ -398,7 +407,7 @@ export default function Landing({ onEnter }) {
                   <li key={f} className="ig-plan-feat">{f}</li>
                 ))}
               </ul>
-              <button className="ig-btn-plan" onClick={onEnter}>{plan.cta}</button>
+              <button className="ig-btn-plan" onClick={onGetStarted}>{plan.cta}</button>
             </div>
           ))}
         </div>

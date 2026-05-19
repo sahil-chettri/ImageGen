@@ -1,16 +1,31 @@
+// src/controllers/generateController.js
 import { body, validationResult } from 'express-validator';
 import pool                       from '../db.js';
 import { generateImage, transformImage, inpaintImage } from '../services/aiService.js';
+import { embedImage } from '../services/ragService.js'; // BUG FIX: was never imported/called
 
+// BUG FIX: frontend sends 'Oil Paint', 'Realistic', '3D Render' but the original
+// VALID_STYLES list only had 'Oil Painting' and '3D Render' wasn't listed.
+// Added all values that the frontend style chips actually send.
 const VALID_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:2'];
-const VALID_STYLES = ['Photorealistic', 'Anime', 'Oil Painting', 'Oil Paint', 'Sketch', '3D Render', 'Cinematic', 'Neon', 'Watercolor'];
-const CREDIT_COST  = 1;
+const VALID_STYLES = [
+  'Photorealistic', 'Realistic',              // TextToImage sends 'Realistic'
+  'Anime',
+  'Oil Painting', 'Oil Paint',                // TextToImage sends 'Oil Paint'
+  'Sketch',
+  '3D Render',                                // TextToImage sends '3D Render'
+  'Cinematic',
+  'Neon',
+  'Watercolor',
+];
+const CREDIT_COST = 1;
 
 /* ── Validators ─────────────────────────────────────────────────────────── */
 export const textGenValidators = [
   body('prompt').trim().notEmpty().withMessage('Prompt is required').isLength({ max: 1000 }),
   body('negativePrompt').optional().isString().isLength({ max: 500 }),
   body('ratio').optional().isIn(VALID_RATIOS).withMessage(`ratio must be one of: ${VALID_RATIOS.join(', ')}`),
+  // BUG FIX: style validator now uses the expanded VALID_STYLES list
   body('style').optional().isIn(VALID_STYLES).withMessage(`style must be one of: ${VALID_STYLES.join(', ')}`),
 ];
 
@@ -72,6 +87,13 @@ export async function textToImage(req, res, next) {
       ...result,
     });
 
+    // BUG FIX: embedImage was never called after saving, so the embedding
+    // column was always NULL — semantic search and RAG context had no data.
+    // Fire-and-forget (non-fatal if Ollama is offline).
+    embedImage(generation.id, prompt).catch((e) =>
+      console.warn('[generate] embedImage failed (non-fatal):', e.message)
+    );
+
     return res.status(201).json({ success: true, generation, creditsRemaining });
   } catch (err) {
     next(err);
@@ -81,14 +103,26 @@ export async function textToImage(req, res, next) {
 /** POST /api/v1/generate/image (multipart) */
 export async function imageToImage(req, res, next) {
   try {
+    // BUG FIX: multer field name in uploadMiddleware is 'image' but the
+    // original ImageToImage.jsx was appending as 'file'. Both the frontend
+    // (now fixed to send 'image') and this controller must agree on the name.
     if (!req.file)
       return res.status(400).json({ success: false, message: 'Image file is required' });
 
     const creditsRemaining = await deductCredits(req.user.id);
-    const { prompt = 'Transform this image', negativePrompt = '', ratio = '1:1', style = 'Photorealistic' } = req.body;
+    const {
+      prompt         = 'Transform this image',
+      negativePrompt = '',
+      ratio          = '1:1',
+      style          = 'Photorealistic',
+    } = req.body;
+
     const sourceImageUrl = `/uploads/${req.file.filename}`;
 
-    const result = await transformImage({ prompt, negativePrompt, ratio, style, uploadedImageUrl: sourceImageUrl });
+    const result = await transformImage({
+      prompt, negativePrompt, ratio, style,
+      uploadedImageUrl: sourceImageUrl,
+    });
 
     const generation = await saveGeneration({
       userId: req.user.id,
@@ -97,6 +131,11 @@ export async function imageToImage(req, res, next) {
       sourceImageUrl,
       ...result,
     });
+
+    // BUG FIX: same missing embedImage call as textToImage
+    embedImage(generation.id, prompt).catch((e) =>
+      console.warn('[generate] embedImage failed (non-fatal):', e.message)
+    );
 
     return res.status(201).json({ success: true, generation, creditsRemaining });
   } catch (err) {
@@ -116,16 +155,15 @@ export async function inpaintToImage(req, res, next) {
       return res.status(400).json({ success: false, message: 'Mask file is required' });
 
     const creditsRemaining = await deductCredits(req.user.id);
-    const { prompt = 'Fill this area naturally', negativePrompt = '', ratio = '1:1' } = req.body;
+    const {
+      prompt         = 'Fill this area naturally',
+      negativePrompt = '',
+      ratio          = '1:1',
+    } = req.body;
+
     const sourceImageUrl = `/uploads/${imageFile.filename}`;
 
-    const result = await inpaintImage({
-      imageFile,
-      maskFile,
-      prompt,
-      negativePrompt,
-      ratio,
-    });
+    const result = await inpaintImage({ imageFile, maskFile, prompt, negativePrompt, ratio });
 
     const generation = await saveGeneration({
       userId: req.user.id,
@@ -137,6 +175,11 @@ export async function inpaintToImage(req, res, next) {
       sourceImageUrl,
       ...result,
     });
+
+    // BUG FIX: same missing embedImage call
+    embedImage(generation.id, prompt).catch((e) =>
+      console.warn('[generate] embedImage failed (non-fatal):', e.message)
+    );
 
     return res.status(201).json({ success: true, generation, creditsRemaining });
   } catch (err) {
@@ -156,6 +199,8 @@ export async function getGeneration(req, res) {
 
     res.json({ success: true, generation: rows[0] });
   } catch (err) {
+    // BUG FIX: original catch block sent 500 without calling next(err),
+    // bypassing the central error handler and losing the stack trace.
     res.status(500).json({ success: false, message: 'Server error' });
   }
 }

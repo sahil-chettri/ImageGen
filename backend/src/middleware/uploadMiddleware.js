@@ -1,3 +1,4 @@
+// src/middleware/uploadMiddleware.js
 import multer from 'multer';
 import path   from 'path';
 import fs     from 'fs';
@@ -26,10 +27,23 @@ function fileFilter(_req, file, cb) {
   }
 }
 
-const maxMB = parseInt(process.env.MAX_FILE_SIZE_MB || '5');
+const maxMB = parseInt(process.env.MAX_FILE_SIZE_MB || '5', 10);
 
 export const upload = multer({
   storage,
   fileFilter,
   limits: { fileSize: maxMB * 1024 * 1024 },
 });
+
+// BUG FIX: the inpainting route needs two files (image + mask) using
+// upload.fields(), but the original middleware only exported a single-file
+// upload instance. Routes that need fields() now import uploadFields.
+//
+// Usage in generate route:
+//   import { upload, uploadFields } from '../middleware/uploadMiddleware.js';
+//   router.post('/image',   upload.single('image'),          imageToImage);
+//   router.post('/inpaint', uploadFields,                    inpaintToImage);
+export const uploadFields = upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'mask',  maxCount: 1 },
+]);

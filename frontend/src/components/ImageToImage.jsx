@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
-import api from "../services/api.js";
 import PromptOptimizer from "./PromptOptimizer.jsx";
+import { tokenStorage } from "../services/api.js";
 
 /* ─── THEME — identical to Landing + TextToImage ─── */
 const T = {
@@ -55,7 +55,7 @@ function TemplateCard({ tpl, isActive, isFav, onSelect, onToggleFav }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        flexShrink: 0, width: 110, borderRadius: 14, cursor: "pointer",
+        flexShrink: 0, width: 130, borderRadius: 14, cursor: "pointer",
         overflow: "hidden", position: "relative",
         border: `1.5px solid ${isActive ? tpl.accentB : hov ? T.borderHov : T.border}`,
         background: isActive ? tpl.accentL : hov ? T.creamDark : T.cream,
@@ -65,7 +65,7 @@ function TemplateCard({ tpl, isActive, isFav, onSelect, onToggleFav }) {
           ? `0 0 0 1px ${tpl.accentB}, 0 6px 20px rgba(26,22,18,0.10)`
           : hov ? "0 4px 16px rgba(26,22,18,0.08)" : "0 1px 4px rgba(26,22,18,0.05)",
       }}>
-      <div style={{ height: 56, background: `linear-gradient(${tpl.gradient})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+      <div style={{ height: 68, background: `linear-gradient(${tpl.gradient})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
         {tpl.emoji}
       </div>
       <div style={{ padding: "7px 9px 10px" }}>
@@ -88,6 +88,7 @@ export default function ImageToImage({ onBack }) {
   const [loading,        setLoading]   = useState(false);
   const [image,          setImage]     = useState(null);
   const [imgLoaded,      setImgLoaded] = useState(false);
+  const [srcAspect,      setSrcAspect]  = useState(null); // natural width/height ratio of source
   const [error,          setError]     = useState("");
   const [showRag,        setShowRag]   = useState(false);
   const [sourceFile,     setSourceFile]= useState(null);
@@ -98,16 +99,22 @@ export default function ImageToImage({ onBack }) {
   const [search,         setSearch]    = useState("");
   const [cat,            setCat]       = useState("All");
   const [showFavs,       setShowFavs]  = useState(false);
+  const [showStylePreset, setShowStyleP] = useState(false);
   const fileRef = useRef(null);
 
   const handleFile = useCallback((file) => {
     if (!file || !file.type.startsWith("image/")) return;
-    setSourceFile(file); setSourcePrev(URL.createObjectURL(file));
+    const url = URL.createObjectURL(file);
+    setSourceFile(file); setSourcePrev(url);
     setImage(null); setImgLoaded(false); setError("");
+    // Detect natural aspect ratio so the preview card matches the image shape
+    const img = new Image();
+    img.onload = () => setSrcAspect(img.naturalWidth / img.naturalHeight);
+    img.src = url;
   }, []);
 
   const onDrop = (e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); };
-  const removeSource = () => { setSourceFile(null); setSourcePrev(null); setImage(null); setImgLoaded(false); };
+  const removeSource = () => { setSourceFile(null); setSourcePrev(null); setImage(null); setImgLoaded(false); setSrcAspect(null); };
   const toggleFav = (id) => setFavs(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
   const applyTemplate = (tpl) => setActiveTpl(tpl.id);
 
@@ -118,6 +125,11 @@ export default function ImageToImage({ onBack }) {
     return true;
   });
 
+  /**
+   * Reads the JWT from localStorage using the same key as api.js ('imagegen_token').
+   */
+  const getAuthToken = () => tokenStorage.get();
+
   const generate = async () => {
     if (!prompt.trim()) { setError("Please enter a transformation prompt."); return; }
     if (!sourceFile)    { setError("Please upload a source image."); return; }
@@ -125,8 +137,43 @@ export default function ImageToImage({ onBack }) {
     try {
       const imgTpl   = IMG_TEMPLATES.find(t => t.id === activeTpl);
       const modifier = imgTpl ? `, ${imgTpl.modifier}` : "";
-      const data = await api.generate.image({ file: sourceFile, prompt: prompt.trim() + modifier, negativePrompt, ratio, style: style || "Cinematic" });
-      setImage(data.generation.image_url);
+
+      // Build FormData — the only correct way to upload a File (not JSON)
+      const form = new FormData();
+      form.append("image",          sourceFile);
+      form.append("prompt",         prompt.trim() + modifier);
+      form.append("negativePrompt", negativePrompt || "");
+      form.append("ratio",          ratio);
+      form.append("style",          style || "Cinematic");
+
+      // Attach auth token — backend requires Authorization: Bearer <token>
+      const token = getAuthToken();
+      const headers = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      // ⚠️ Do NOT set Content-Type — browser sets it automatically with the
+      //    correct multipart boundary when the body is FormData
+
+      const res = await fetch("http://localhost:5000/api/v1/generate/image", {
+        method: "POST",
+        headers,
+        credentials: "include", // also sends cookies (session-based auth fallback)
+        body: form,
+      });
+
+      if (!res.ok) {
+        let errMsg = `Server error ${res.status}`;
+        try {
+          const errData = await res.json();
+          errMsg = errData?.message || errData?.error || errMsg;
+        } catch { errMsg = await res.text() || errMsg; }
+        throw new Error(errMsg);
+      }
+
+      const data = await res.json();
+      // Support both { image_url } and { generation: { image_url } } shapes
+      const url = data?.image_url ?? data?.generation?.image_url ?? data?.url ?? data?.imageUrl;
+      if (!url) throw new Error("No image URL returned from server.");
+      setImage(url);
     } catch (err) {
       setError(err.message || "Something went wrong.");
     } finally { setLoading(false); }
@@ -166,24 +213,6 @@ export default function ImageToImage({ onBack }) {
         @keyframes i2i-blobFloat { 0%,100%{transform:translate(0,0) scale(1);} 33%{transform:translate(18px,-18px) scale(1.05);} 66%{transform:translate(-14px,14px) scale(0.97);} }
         @keyframes i2i-spin { to { transform: rotate(360deg); } }
         @keyframes i2i-reveal { from{opacity:0;transform:scale(0.97);} to{opacity:1;transform:scale(1);} }
-
-        /* nav */
-        .i2i-nav {
-          display:flex; align-items:center; justify-content:space-between;
-          padding:0 40px; height:60px; flex-shrink:0;
-          background:rgba(245,240,232,0.88);
-          backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-          border-bottom:1px solid rgba(26,22,18,0.08);
-          position:relative; z-index:50;
-        }
-        .i2i-logo { font-family:'Instrument Serif',serif; font-size:19px; font-style:italic; color:${T.ink}; letter-spacing:-0.5px; }
-        .i2i-logo span { color:${T.accent}; }
-        .i2i-back-btn { display:flex; align-items:center; gap:6px; padding:6px 14px; border-radius:999px; border:1px solid ${T.border}; background:transparent; font-family:'DM Sans',sans-serif; font-size:12.5px; font-weight:500; color:${T.inkSoft}; cursor:pointer; transition:all 0.18s; }
-        .i2i-back-btn:hover { border-color:${T.borderHov}; color:${T.ink}; background:${T.creamDark}; }
-        .i2i-nav-link { background:none; border:none; font-family:'DM Sans',sans-serif; font-size:13.5px; color:${T.inkSoft}; cursor:pointer; transition:color 0.18s; padding:4px 0; }
-        .i2i-nav-link:hover { color:${T.ink}; }
-        .i2i-cta { font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; background:${T.ink}; color:${T.cream}; border:none; padding:8px 18px; border-radius:999px; cursor:pointer; transition:all 0.2s; }
-        .i2i-cta:hover { background:#2d2520; transform:scale(1.02); }
 
         /* panels */
         .i2i-panel { background:${T.card}; border:1px solid ${T.border}; border-radius:20px; backdrop-filter:blur(10px); }
@@ -239,20 +268,6 @@ export default function ImageToImage({ onBack }) {
       <div className="i2i-blob i2i-blob-2" />
       <div className="i2i-blob i2i-blob-3" />
 
-      {/* ── Navbar ── */}
-      <nav className="i2i-nav">
-        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-          <button className="i2i-back-btn" onClick={onBack}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-            Back
-          </button>
-          <span className="i2i-logo">Image<span>Gen</span></span>
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:28 }}>
-          {["Modes","Gallery","Pricing","Docs"].map(l => <button key={l} className="i2i-nav-link">{l}</button>)}
-        </div>
-        <button className="i2i-cta">Get Started</button>
-      </nav>
 
       {/* ── RAG modal ── */}
       {showRag && (
@@ -300,13 +315,16 @@ export default function ImageToImage({ onBack }) {
             <div>
               <Label>Style Templates</Label>
               {/* Search + favs */}
-              <div style={{ display:"flex", gap:7, marginBottom:8 }}>
-                <input className="i2i-input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search styles…" style={{ flex:1 }}
-                  onFocus={e => { e.target.style.borderColor=T.accent; e.target.style.boxShadow=`0 0 0 3px ${T.accentDim}`; }}
-                  onBlur={e => { e.target.style.borderColor=T.border; e.target.style.boxShadow="none"; }}
-                />
-                <button onClick={() => setShowFavs(f => !f)} style={{ padding:"7px 12px", borderRadius:10, border:`1px solid ${showFavs?"#f9a8d4":T.border}`, background:showFavs?"#fdf2f8":"transparent", color:showFavs?"#db2777":T.inkMuted, fontSize:11.5, cursor:"pointer", display:"flex", alignItems:"center", gap:4, fontWeight:500, transition:"all .15s", fontFamily:"'DM Sans',sans-serif" }}>
-                  <HeartIcon filled={showFavs} /> Favs
+              <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                <div style={{ flex:1, position:"relative", display:"flex", alignItems:"center" }}>
+                  <svg style={{ position:"absolute", left:10, pointerEvents:"none", color:T.inkMuted }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                  <input className="i2i-input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search styles…" style={{ width:"100%", paddingLeft:30 }}
+                    onFocus={e => { e.target.style.borderColor=T.accent; e.target.style.boxShadow=`0 0 0 3px ${T.accentDim}`; }}
+                    onBlur={e => { e.target.style.borderColor=T.border; e.target.style.boxShadow="none"; }}
+                  />
+                </div>
+                <button onClick={() => setShowFavs(f => !f)} style={{ padding:"7px 14px", borderRadius:10, border:`1px solid ${showFavs?"#f9a8d4":T.border}`, background:showFavs?"#fdf2f8":"transparent", color:showFavs?"#db2777":T.inkMuted, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5, fontWeight:500, transition:"all .15s", fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>
+                  <HeartIcon filled={showFavs} /> Favorites
                 </button>
               </div>
 
@@ -377,7 +395,10 @@ export default function ImageToImage({ onBack }) {
             {/* ── PROMPT ── */}
             <div>
               <Label req>Transformation Prompt</Label>
-              <textarea className="i2i-input i2i-textarea" rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Describe how to transform the image…" />
+              <div style={{ position:"relative" }}>
+                <textarea className="i2i-input i2i-textarea" rows={3} value={prompt} onChange={e => setPrompt(e.target.value.slice(0,1000))} placeholder="Describe how to transform the image…" style={{ paddingBottom:22 }} />
+                <span style={{ position:"absolute", bottom:8, right:10, fontSize:11, color:T.inkMuted, pointerEvents:"none" }}>{prompt.length} / 1000</span>
+              </div>
               {prompt && (
                 <button className="i2i-ai-tag" onClick={() => setShowRag(true)} style={{ marginTop:6 }}>
                   <SparkleIcon size={10} color={T.accent} /> Optimize prompt
@@ -388,7 +409,10 @@ export default function ImageToImage({ onBack }) {
             {/* ── NEGATIVE PROMPT ── */}
             <div>
               <Label opt>Negative Prompt</Label>
-              <textarea className="i2i-input i2i-textarea" rows={2} value={negativePrompt} onChange={e => setNegPrompt(e.target.value)} placeholder="What to avoid in the result…" />
+              <div style={{ position:"relative" }}>
+                <textarea className="i2i-input i2i-textarea" rows={2} value={negativePrompt} onChange={e => setNegPrompt(e.target.value.slice(0,1000))} placeholder="What to avoid in the result…" style={{ paddingBottom:22 }} />
+                <span style={{ position:"absolute", bottom:8, right:10, fontSize:11, color:T.inkMuted, pointerEvents:"none" }}>{negativePrompt.length} / 1000</span>
+              </div>
             </div>
 
             {/* divider */}
@@ -396,12 +420,17 @@ export default function ImageToImage({ onBack }) {
 
             {/* ── STYLE PRESET ── */}
             <div>
-              <Label>Style Preset</Label>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                {STYLES.map(s => (
-                  <button key={s} className={`i2i-chip ${style===s?"i2i-chip-on":""}`} onClick={() => setStyle(style===s?"":s)}>{s}</button>
-                ))}
-              </div>
+              <button onClick={() => setShowStyleP(p => !p)} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", background:"none", border:"none", cursor:"pointer", padding:0, marginBottom: showStylePreset ? 10 : 0, fontFamily:"'DM Sans',sans-serif" }}>
+                <span style={{ fontSize:10.5, fontWeight:500, color:T.inkMuted, textTransform:"uppercase", letterSpacing:"0.9px" }}>Style Preset</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.inkMuted} strokeWidth="2.2" strokeLinecap="round" style={{ transition:"transform 0.2s", transform: showStylePreset ? "rotate(180deg)" : "rotate(0deg)" }}><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              {showStylePreset && (
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                  {STYLES.map(s => (
+                    <button key={s} className={`i2i-chip ${style===s?"i2i-chip-on":""}`} onClick={() => setStyle(style===s?"":s)}>{s}</button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* ── ASPECT RATIO ── */}
@@ -438,14 +467,12 @@ export default function ImageToImage({ onBack }) {
         </div>
 
         {/* ══ RIGHT PANEL — PREVIEW ══ */}
-        <div className="i2i-panel" style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+        <div className="i2i-panel" style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minHeight:0 }}>
 
           {/* Preview header */}
-          <div style={{ padding:"14px 22px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-            <span style={{ fontFamily:"'Instrument Serif',serif", fontStyle:"italic", fontSize:17, color:T.ink, flex:1 }}>Preview</span>
+          <div style={{ padding:"12px 20px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+            <span style={{ fontFamily:"'Instrument Serif',serif", fontStyle:"italic", fontSize:16, color:T.ink, flex:1 }}>Preview</span>
             {image && <span style={{ fontSize:11, color:"#16a34a", background:"#f0fdf4", border:"1px solid #bbf7d0", padding:"2px 9px", borderRadius:6, fontWeight:500 }}>✓ Generated</span>}
-
-            {/* icon toolbar */}
             <div style={{ display:"flex", alignItems:"center", gap:5 }}>
               <button className="i2i-icon-btn i2i-icon-btn-on">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -463,62 +490,98 @@ export default function ImageToImage({ onBack }) {
             </div>
           </div>
 
-          {/* Preview body */}
-          <div style={{ flex:1, display:"flex", gap:18, padding:"24px", overflow:"hidden", background:"rgba(245,240,232,0.35)", alignItems:"stretch" }}>
+          {/* ── Preview body: side-by-side BEFORE / AFTER ── */}
+          <div style={{ flex:1, display:"flex", minHeight:0, overflow:"hidden", background:"rgba(245,240,232,0.35)", padding:16, gap:12 }}>
 
-            {/* Source thumbnail */}
-            {sourcePreview && (
-              <div style={{ width:160, flexShrink:0, display:"flex", flexDirection:"column" }}>
-                <div style={{ fontSize:10, fontWeight:500, color:T.inkMuted, textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:8 }}>Source</div>
-                <div style={{ borderRadius:14, overflow:"hidden", border:`1px solid ${T.border}`, position:"relative", boxShadow:"0 2px 10px rgba(26,22,18,0.06)", flex:1 }}>
-                  <img src={sourcePreview} alt="Source" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
-                  {activeTplData && (
-                    <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"6px 10px", background:"rgba(245,240,232,0.92)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", gap:5, fontSize:11, color:T.ink, borderTop:`1px solid ${T.border}` }}>
-                      <span>{activeTplData.emoji}</span>
-                      <span style={{ fontWeight:500 }}>{activeTplData.name}</span>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.inkMuted} strokeWidth="2" style={{ marginLeft:"auto" }}><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                    </div>
-                  )}
-                </div>
+            {/* ── BEFORE card ── */}
+            <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, minHeight:0 }}>
+              {/* Label */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8, flexShrink:0 }}>
+                <span style={{ fontSize:10, fontWeight:700, color:T.inkMuted, textTransform:"uppercase", letterSpacing:"1px" }}>Before</span>
+                {activeTplData && sourcePreview && (
+                  <span style={{ display:"flex", alignItems:"center", gap:4, fontSize:10, color:activeTplData.accentC, background:activeTplData.accentL, border:`1px solid ${activeTplData.accentB}`, borderRadius:6, padding:"2px 8px", fontWeight:500 }}>
+                    {activeTplData.emoji} {activeTplData.name}
+                  </span>
+                )}
               </div>
-            )}
+              {/* Image box */}
+              <div style={{
+                flex:1, minHeight:0, borderRadius:14, overflow:"hidden",
+                border:`1.5px solid ${T.border}`,
+                background: sourcePreview ? T.creamDark : "rgba(255,253,248,0.6)",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                position:"relative",
+              }}>
+                {sourcePreview ? (
+                  <img src={sourcePreview} alt="Source"
+                    style={{ width:"100%", height:"100%", objectFit:"contain", display:"block" }} />
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10, padding:24, textAlign:"center" }}>
+                    <div style={{ width:54, height:54, borderRadius:16, background:T.accentDim, border:`1px solid ${T.accentBrd}`, display:"flex", alignItems:"center", justifyContent:"center", color:T.accent }}>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </div>
+                    <p style={{ fontFamily:"'Instrument Serif',serif", fontStyle:"italic", fontSize:14, color:T.inkMuted, margin:0 }}>Upload a source image</p>
+                  </div>
+                )}
+              </div>
+            </div>
 
-            {/* Output box */}
-            <div style={{ flex:1, borderRadius:16, border:`1.5px dashed ${T.border}`, background:"rgba(255,253,248,0.6)", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", position:"relative" }}>
-              {loading && (
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16, textAlign:"center" }}>
-                  <div style={{ position:"relative", width:52, height:52 }}>
-                    <div style={{ width:52, height:52, border:`3px solid ${T.accentDim}`, borderTopColor:T.accent, borderRadius:"50%", animation:"i2i-spin 0.9s linear infinite" }} />
-                    <div style={{ position:"absolute", inset:10, border:`3px solid rgba(232,93,58,0.08)`, borderTopColor:T.accentEnd, borderRadius:"50%", animation:"i2i-spin 1.6s linear infinite reverse" }} />
-                  </div>
-                  <div>
-                    <p style={{ fontFamily:"'Instrument Serif',serif", fontStyle:"italic", fontSize:16, color:T.ink, margin:"0 0 5px" }}>Transforming your image…</p>
-                    <p style={{ fontSize:12.5, color:T.inkMuted, margin:0 }}>This may take 10–20 seconds</p>
-                  </div>
-                </div>
-              )}
+            {/* ── Divider arrow ── */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, width:32 }}>
+              <div style={{ width:32, height:32, borderRadius:"50%", background:T.card, border:`1.5px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 8px rgba(26,22,18,0.08)" }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={loading ? T.accent : T.inkMuted} strokeWidth="2.5" strokeLinecap="round" style={{ transition:"stroke 0.3s" }}>
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </div>
+            </div>
 
-              {!loading && !image && (
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:14, textAlign:"center", padding:40 }}>
-                  <div style={{ width:70, height:70, borderRadius:20, background:T.accentDim, border:`1px solid ${T.accentBrd}`, display:"flex", alignItems:"center", justifyContent:"center", color:T.accent }}>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            {/* ── AFTER card ── */}
+            <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, minHeight:0 }}>
+              {/* Label */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8, flexShrink:0 }}>
+                <span style={{ fontSize:10, fontWeight:700, color: image ? "#16a34a" : T.inkMuted, textTransform:"uppercase", letterSpacing:"1px" }}>After</span>
+                {image && <span style={{ fontSize:10, color:"#16a34a", background:"#f0fdf4", border:"1px solid #bbf7d0", padding:"2px 8px", borderRadius:6, fontWeight:500 }}>✓ Ready</span>}
+              </div>
+              {/* Image box */}
+              <div style={{
+                flex:1, minHeight:0, borderRadius:14, overflow:"hidden",
+                border:`1.5px ${image ? "solid" : "dashed"} ${image ? T.border : T.border}`,
+                background: image ? T.creamDark : "rgba(255,253,248,0.6)",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                position:"relative", transition:"all 0.3s",
+              }}>
+                {loading && (
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:14, textAlign:"center", padding:24 }}>
+                    <div style={{ position:"relative", width:48, height:48 }}>
+                      <div style={{ width:48, height:48, border:`3px solid ${T.accentDim}`, borderTopColor:T.accent, borderRadius:"50%", animation:"i2i-spin 0.9s linear infinite" }} />
+                      <div style={{ position:"absolute", inset:9, border:`2px solid rgba(232,93,58,0.08)`, borderTopColor:T.accentEnd, borderRadius:"50%", animation:"i2i-spin 1.6s linear infinite reverse" }} />
+                    </div>
+                    <div>
+                      <p style={{ fontFamily:"'Instrument Serif',serif", fontStyle:"italic", fontSize:15, color:T.ink, margin:"0 0 4px" }}>Transforming…</p>
+                      <p style={{ fontSize:11.5, color:T.inkMuted, margin:0 }}>10–20 seconds</p>
+                    </div>
                   </div>
-                  <div>
-                    <p style={{ fontFamily:"'Instrument Serif',serif", fontStyle:"italic", fontSize:17, color:T.ink, margin:"0 0 6px" }}>Transformed image will appear here</p>
-                    <p style={{ fontSize:13, color:T.inkMuted, margin:0 }}>{!sourceFile ? "Upload a source image to get started" : "Select a style and click Transform Image"}</p>
+                )}
+                {!loading && !image && (
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10, padding:24, textAlign:"center" }}>
+                    <div style={{ width:54, height:54, borderRadius:16, background:T.accentDim, border:`1px solid ${T.accentBrd}`, display:"flex", alignItems:"center", justifyContent:"center", color:T.accent }}>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    </div>
+                    <p style={{ fontFamily:"'Instrument Serif',serif", fontStyle:"italic", fontSize:14, color:T.inkMuted, margin:0 }}>
+                      {!sourceFile ? "Upload an image first" : "Select a style & transform"}
+                    </p>
                   </div>
-                </div>
-              )}
-
-              {!loading && image && (
-                <img src={image} alt="Transformed" onLoad={() => setImgLoaded(true)}
-                  style={{ width:"100%", height:"100%", objectFit:"contain", borderRadius:12, opacity:imgLoaded?1:0, transition:"opacity 0.4s ease", animation:"i2i-reveal 0.5s ease" }} />
-              )}
+                )}
+                {!loading && image && (
+                  <img src={image} alt="Transformed" onLoad={() => setImgLoaded(true)}
+                    style={{ width:"100%", height:"100%", objectFit:"contain", display:"block", opacity:imgLoaded?1:0, transition:"opacity 0.45s ease", animation:"i2i-reveal 0.5s ease" }} />
+                )}
+              </div>
             </div>
           </div>
 
           {/* Bottom actions */}
-          <div style={{ padding:"12px 22px", borderTop:`1px solid ${T.border}`, display:"flex", gap:9, flexShrink:0 }}>
+          <div style={{ padding:"12px 20px", borderTop:`1px solid ${T.border}`, display:"flex", gap:9, flexShrink:0 }}>
             <button className="i2i-action-btn" disabled={!image} onClick={image?download:undefined}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
               Download

@@ -205,7 +205,6 @@ export default function ModePicker({
   onImageToImage,
   onInpainting,
   onEnhancement,
-  user,
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -256,101 +255,6 @@ export default function ModePicker({
         * { box-sizing: border-box; }
       `}</style>
 
-      {/* ── Navbar ── */}
-      <nav style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 40px",
-        height: 60,
-        background: "#f5f0e8",
-        borderBottom: "1px solid #e8e0d0",
-        position: "sticky",
-        top: 0,
-        zIndex: 50,
-      }}>
-        {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{
-            width: 28,
-            height: 28,
-            borderRadius: 8,
-            background: "linear-gradient(135deg, #c0562a, #e08050)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 14,
-            color: "#fff",
-            fontWeight: 800,
-          }}>
-            ✦
-          </div>
-          <span style={{ fontSize: 17, fontWeight: 700, color: "#c0562a", fontFamily: "'Playfair Display', serif" }}>
-            ImageGen
-          </span>
-        </div>
-
-        {/* Nav links */}
-        <div style={{ display: "flex", gap: 28, alignItems: "center" }}>
-          {["Modes", "Gallery", "Pricing", "Docs"].map(l => (
-            <span key={l} style={{
-              fontSize: 13,
-              color: "#7a6a55",
-              cursor: "pointer",
-              fontWeight: 500,
-              transition: "color 0.15s",
-            }}
-              onMouseEnter={e => e.target.style.color = "#2a1f12"}
-              onMouseLeave={e => e.target.style.color = "#7a6a55"}
-            >{l}</span>
-          ))}
-        </div>
-
-        {/* Auth */}
-        <div style={{ display: "flex", gap: 10 }}>
-          {user ? (
-            <div style={{
-              width: 34,
-              height: 34,
-              borderRadius: "50%",
-              background: "#c0562a",
-              color: "#fff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 14,
-              fontWeight: 700,
-            }}>
-              {(user.name || user.email || "U")[0].toUpperCase()}
-            </div>
-          ) : (
-            <>
-              <button style={{
-                padding: "7px 18px",
-                borderRadius: 99,
-                border: "1.5px solid #d4c9b8",
-                background: "transparent",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "#5a4a35",
-                cursor: "pointer",
-                fontFamily: "'DM Sans', sans-serif",
-              }}>Log in</button>
-              <button style={{
-                padding: "7px 18px",
-                borderRadius: 99,
-                border: "none",
-                background: "#c0562a",
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "'DM Sans', sans-serif",
-              }}>Sign up free</button>
-            </>
-          )}
-        </div>
-      </nav>
 
       {/* ── Hero text ── */}
       <div style={{

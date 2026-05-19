@@ -104,52 +104,6 @@ export default function TextToImage({ onBack }) {
         @keyframes tti-fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         @keyframes tti-imageReveal { from { opacity:0; transform:scale(0.97); } to { opacity:1; transform:scale(1); } }
 
-        /* nav */
-        .tti-nav {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 0 48px; height: 64px;
-          background: rgba(245,240,232,0.88);
-          backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-          border-bottom: 1px solid rgba(26,22,18,0.08);
-          position: relative; z-index: 50; flex-shrink: 0;
-        }
-        .tti-logo {
-          font-family: 'Instrument Serif', serif;
-          font-size: 20px; font-style: italic;
-          color: ${T.ink}; letter-spacing: -0.5px;
-        }
-        .tti-logo span { color: ${T.accent}; }
-
-        .tti-back-btn {
-          display: flex; align-items: center; gap: 6px;
-          padding: 7px 16px; border-radius: 999px;
-          border: 1px solid ${T.border};
-          background: transparent;
-          font-family: 'DM Sans', sans-serif;
-          font-size: 13px; font-weight: 500; color: ${T.inkSoft};
-          cursor: pointer; transition: all 0.18s;
-        }
-        .tti-back-btn:hover { border-color: ${T.borderHov}; color: ${T.ink}; background: ${T.creamDark}; }
-
-        .tti-nav-link {
-          background: none; border: none;
-          font-family: 'DM Sans', sans-serif;
-          font-size: 14px; font-weight: 400;
-          color: ${T.inkSoft}; cursor: pointer; transition: color 0.18s;
-          padding: 4px 0;
-        }
-        .tti-nav-link:hover { color: ${T.ink}; }
-
-        .tti-cta-btn {
-          font-family: 'DM Sans', sans-serif;
-          font-size: 13px; font-weight: 500;
-          background: ${T.ink}; color: ${T.cream};
-          border: none; padding: 9px 20px;
-          border-radius: 999px; cursor: pointer;
-          transition: background 0.2s, transform 0.15s;
-        }
-        .tti-cta-btn:hover { background: #2d2520; transform: scale(1.02); }
-
         /* panels */
         .tti-panel {
           background: ${T.card};
@@ -302,26 +256,6 @@ export default function TextToImage({ onBack }) {
       <div className="tti-blob tti-blob-2" />
       <div className="tti-blob tti-blob-3" />
 
-      {/* ── Navbar ── */}
-      <nav className="tti-nav">
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <button className="tti-back-btn" onClick={onBack}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-              <path d="M19 12H5M12 5l-7 7 7 7"/>
-            </svg>
-            Back
-          </button>
-          <span className="tti-logo">Image<span>Gen</span></span>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 30 }}>
-          {["Modes", "Gallery", "Pricing", "Docs"].map(item => (
-            <button key={item} className="tti-nav-link">{item}</button>
-          ))}
-        </div>
-
-        <button className="tti-cta-btn">Get Started</button>
-      </nav>
 
       {/* ── RAG modal ── */}
       {showRag && (

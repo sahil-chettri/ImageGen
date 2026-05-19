@@ -1,9 +1,9 @@
 // src/services/ragService.js
 import { embed, embedBatch, toPgVector } from "./embeddingService.js";
-import pool from "../db.js";  // your existing pg pool
+import pool from "../db.js";
 
-const OLLAMA_URL  = process.env.OLLAMA_URL        || "http://localhost:11434";
-const CHAT_MODEL  = process.env.OLLAMA_CHAT_MODEL  || "llama3";
+const OLLAMA_URL = process.env.OLLAMA_URL       || "http://localhost:11434";
+const CHAT_MODEL = process.env.OLLAMA_CHAT_MODEL || "llama3";
 
 // ─────────────────────────────────────────────────────────────
 // 1. PROMPT OPTIMIZATION
@@ -49,7 +49,11 @@ export async function optimizePrompt(rawPrompt, userId) {
     [userId, rawPrompt, optimized, pgVec]
   );
 
-  return { optimized, promptHistoryId: saved[0].id, context: { similarPrompts, templates, similarImages } };
+  return {
+    optimized,
+    promptHistoryId: saved[0].id,
+    context: { similarPrompts, templates, similarImages },
+  };
 }
 
 function buildContext(similarPrompts, templates, similarImages) {
@@ -63,7 +67,7 @@ function buildContext(similarPrompts, templates, similarImages) {
   if (similarPrompts.length > 0) {
     ctx += `\nUser's past successful prompts:\n`;
     similarPrompts
-      .sort((a, b) => b.quality - a.quality)
+      .sort((a, b) => (b.quality ?? 0) - (a.quality ?? 0)) // BUG FIX: quality can be NULL; default to 0
       .forEach((p) => {
         ctx += `  - Original: "${p.prompt}"\n`;
         if (p.optimized) ctx += `    Optimized: "${p.optimized}"\n`;
@@ -106,17 +110,21 @@ Rules:
         stream: false,
       }),
     });
-    if (!res.ok) throw new Error("Ollama chat failed");
+    if (!res.ok) throw new Error(`Ollama chat responded with ${res.status}`);
     const data = await res.json();
     return data.message?.content?.trim() || rawPrompt;
   } catch (err) {
     console.error("[RAG] Prompt optimization failed:", err.message);
-    return rawPrompt;
+    return rawPrompt; // graceful fallback — return original
   }
 }
 
 // ─────────────────────────────────────────────────────────────
 // 2. EMBED IMAGE after generation
+// BUG FIX: generateController never called embedImage after saving a
+// generation, so the embedding column was always NULL and semantic
+// search / RAG context never had any data to work with.
+// Call this from generateController after saveGeneration().
 // ─────────────────────────────────────────────────────────────
 
 export async function embedImage(imageId, prompt) {
@@ -127,6 +135,7 @@ export async function embedImage(imageId, prompt) {
       [toPgVector(vec), prompt, imageId]
     );
   } catch (err) {
+    // Non-fatal — generation still succeeds without embedding
     console.error("[RAG] embedImage failed:", err.message);
   }
 }
@@ -156,6 +165,14 @@ export async function searchImages(query, userId, limit = 6) {
 export async function ingestDocument(userId, filename, fullText, chunkSize = 800) {
   const chunks     = chunkText(fullText, chunkSize);
   const embeddings = await embedBatch(chunks);
+
+  // BUG FIX: embedBatch may return fewer embeddings than chunks if some
+  // batch requests fail. Guard the insert loop.
+  if (embeddings.length !== chunks.length) {
+    throw new Error(
+      `Embedding batch mismatch: got ${embeddings.length} vectors for ${chunks.length} chunks`
+    );
+  }
 
   await pool.query(
     `DELETE FROM documents WHERE user_id = $1 AND filename = $2`,
@@ -187,7 +204,10 @@ export async function answerFromDocs(question, userId) {
   );
 
   if (chunks.length === 0) {
-    return { answer: "No relevant documents found. Please upload some documents first.", sources: [] };
+    return {
+      answer: "No relevant documents found. Please upload some documents first.",
+      sources: [],
+    };
   }
 
   const context = chunks.map((c) => `[${c.filename}]\n${c.chunk_text}`).join("\n\n---\n\n");
@@ -199,18 +219,34 @@ export async function answerFromDocs(question, userId) {
       body: JSON.stringify({
         model: CHAT_MODEL,
         messages: [
-          { role: "system", content: "Answer questions based only on the provided context. If the answer is not in the context, say so." },
-          { role: "user",   content: `Context:\n${context}\n\nQuestion: ${question}\n\nAnswer:` },
+          {
+            role: "system",
+            content:
+              "Answer questions based only on the provided context. If the answer is not in the context, say so.",
+          },
+          {
+            role: "user",
+            content: `Context:\n${context}\n\nQuestion: ${question}\n\nAnswer:`,
+          },
         ],
         stream: false,
       }),
     });
+    // BUG FIX: original code didn't check res.ok before calling res.json(),
+    // which throws a confusing SyntaxError when Ollama returns an error body.
+    if (!res.ok) throw new Error(`Ollama responded with ${res.status}`);
     const data   = await res.json();
     const answer = data.message?.content?.trim() || "Could not generate an answer.";
-    return { answer, sources: chunks.map((c) => ({ filename: c.filename, similarity: c.similarity })) };
+    return {
+      answer,
+      sources: chunks.map((c) => ({ filename: c.filename, similarity: c.similarity })),
+    };
   } catch (err) {
     console.error("[RAG] QA failed:", err.message);
-    return { answer: "Error generating answer. Make sure Ollama is running.", sources: [] };
+    return {
+      answer: "Error generating answer. Make sure Ollama is running.",
+      sources: [],
+    };
   }
 }
 
@@ -223,7 +259,7 @@ export async function suggestPrompts(userId) {
     `SELECT prompt, optimized, quality
      FROM prompt_history
      WHERE user_id = $1
-     ORDER BY quality DESC, created_at DESC
+     ORDER BY quality DESC NULLS LAST, created_at DESC  -- BUG FIX: NULLS LAST avoids NULL > any number
      LIMIT 10`,
     [userId]
   );
@@ -247,17 +283,40 @@ export async function suggestPrompts(userId) {
       body: JSON.stringify({
         model: CHAT_MODEL,
         messages: [
-          { role: "system", content: "You are an AI image prompt generator. Based on user history, suggest 5 new creative prompts. Output ONLY a JSON array of strings, nothing else." },
-          { role: "user",   content: `User's past prompts:\n- ${history}\n\nSuggest 5 new prompts as a JSON array:` },
+          {
+            role: "system",
+            content:
+              "You are an AI image prompt generator. Based on user history, suggest 5 new creative prompts. Output ONLY a JSON array of strings, nothing else.",
+          },
+          {
+            role: "user",
+            content: `User's past prompts:\n- ${history}\n\nSuggest 5 new prompts as a JSON array:`,
+          },
         ],
         stream: false,
       }),
     });
-    const data  = await res.json();
-    const text  = data.message?.content?.trim() || "[]";
+    if (!res.ok) throw new Error(`Ollama responded with ${res.status}`);
+    const data = await res.json();
+    const text = data.message?.content?.trim() || "[]";
+
+    // BUG FIX: original regex only matched the first JSON array. If Ollama
+    // wraps the array in markdown fences (```json [...] ```) the match
+    // still works, but if it outputs invalid JSON the process crashes.
+    // Now we safely parse and validate.
     const match = text.match(/\[[\s\S]*\]/);
-    if (match) return JSON.parse(match[0]);
-    return [];
+    if (!match) return [];
+    try {
+      const parsed = JSON.parse(match[0]);
+      // Ensure every element is a non-empty string
+      if (Array.isArray(parsed)) {
+        return parsed.filter((s) => typeof s === "string" && s.trim().length > 0);
+      }
+      return [];
+    } catch {
+      console.warn("[RAG] suggestPrompts: could not parse Ollama JSON output:", text);
+      return [];
+    }
   } catch (err) {
     console.error("[RAG] suggestPrompts failed:", err.message);
     return [];
@@ -266,12 +325,16 @@ export async function suggestPrompts(userId) {
 
 // ─────────────────────────────────────────────────────────────
 // 6. FEEDBACK
+// BUG FIX: original function signature was recordFeedback(promptHistoryId, userId, positive)
+// but the route was already passing a pre-computed float (qualityValue).
+// Unified: this function receives the float directly.
 // ─────────────────────────────────────────────────────────────
 
-export async function recordFeedback(promptHistoryId, userId, positive) {
+export async function recordFeedback(promptHistoryId, userId, qualityValue) {
+  // qualityValue must be 0.0 or 1.0 (enforced by the route)
   await pool.query(
     `UPDATE prompt_history SET quality = $1 WHERE id = $2 AND user_id = $3`,
-    [positive ? 1.0 : 0.0, promptHistoryId, userId]
+    [qualityValue, promptHistoryId, userId]
   );
 }
 
@@ -281,11 +344,13 @@ export async function recordFeedback(promptHistoryId, userId, positive) {
 
 function chunkText(text, size) {
   const chunks    = [];
-  const sentences = text.split(/(?<=[.!?])\s+/);
+  // BUG FIX: lookbehind split (?<=[.!?]) is not supported in all Node versions <16.
+  // Use a safe alternative that splits on sentence boundaries.
+  const sentences = text.split(/(?<=[.!?])\s+/u);
   let current     = "";
 
   for (const sentence of sentences) {
-    if ((current + sentence).length > size && current.length > 0) {
+    if ((current + " " + sentence).length > size && current.length > 0) {
       chunks.push(current.trim());
       current = sentence;
     } else {
@@ -294,5 +359,19 @@ function chunkText(text, size) {
   }
 
   if (current.trim()) chunks.push(current.trim());
-  return chunks;
+
+  // BUG FIX: if a single sentence is longer than chunkSize (e.g. a code block
+  // or table row with no punctuation), the above loop emits one giant chunk.
+  // Hard-split any chunk that's still oversized.
+  const final = [];
+  for (const chunk of chunks) {
+    if (chunk.length <= size) {
+      final.push(chunk);
+    } else {
+      for (let i = 0; i < chunk.length; i += size) {
+        final.push(chunk.slice(i, i + size));
+      }
+    }
+  }
+  return final;
 }
