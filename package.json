@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.20.0",
+    "react-snowfall": "^2.4.0"
+  }
+}

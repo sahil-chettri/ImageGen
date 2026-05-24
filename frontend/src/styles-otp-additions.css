@@ -1,0 +1,208 @@
+/* ============================================================
+   OTP / Email Verification UI
+   Append these rules to frontend/src/styles.css
+   ============================================================ */
+
+/* ── Modal overlay & box (ensure these exist or merge with yours) ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.modal-box {
+  position: relative;
+  background: var(--bg-secondary, #1a1a24);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  border-radius: 20px;
+  padding: 36px 32px 32px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: var(--text-muted, #64748b);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.modal-close:hover { color: #fff; background: rgba(255,255,255,0.08); }
+
+.modal-header { text-align: center; margin-bottom: 24px; }
+.modal-logo { font-size: 36px; margin-bottom: 10px; }
+.modal-title { margin: 0 0 6px; color: #f1f5f9; font-size: 22px; font-weight: 700; }
+.modal-subtitle { margin: 0; color: var(--text-muted, #64748b); font-size: 14px; line-height: 1.5; }
+
+/* ── Tabs ── */
+.modal-tabs {
+  display: flex;
+  background: rgba(255,255,255,0.04);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 24px;
+  gap: 4px;
+}
+.modal-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-muted, #64748b);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.modal-tab.active {
+  background: var(--accent, #7c3aed);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(124,58,237,0.4);
+}
+
+/* ── Feedback banners ── */
+.modal-error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+.modal-info {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+/* ── Form elements ── */
+.modal-form { display: flex; flex-direction: column; gap: 16px; }
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 13px; color: #94a3b8; font-weight: 500; }
+.form-group input {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  color: #f1f5f9;
+  font-size: 14px;
+  padding: 11px 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+.form-group input:focus {
+  border-color: var(--accent, #7c3aed);
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.2);
+}
+.form-group input::placeholder { color: #475569; }
+
+/* ── Primary button ── */
+.btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+.btn-primary:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-full { width: 100%; }
+
+/* ── OTP Boxes ── */
+.otp-boxes {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 8px 0 4px;
+}
+
+.otp-input {
+  width: 52px;
+  height: 60px;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  color: #a78bfa;
+  background: rgba(124, 58, 237, 0.08);
+  border: 2px solid rgba(124, 58, 237, 0.3);
+  border-radius: 12px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  caret-color: transparent;
+}
+.otp-input:focus {
+  border-color: var(--accent, #7c3aed);
+  background: rgba(124, 58, 237, 0.15);
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.25);
+}
+.otp-input:not(:placeholder-shown) { border-color: rgba(124, 58, 237, 0.6); }
+
+/* ── Resend row ── */
+.otp-resend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #64748b;
+}
+.otp-resend-btn {
+  background: none;
+  border: none;
+  color: var(--accent, #7c3aed);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+.otp-resend-btn:hover:not(:disabled) { color: #a78bfa; }
+.otp-resend-btn:disabled { color: #475569; cursor: not-allowed; }
+
+/* ── Back link ── */
+.otp-back-btn {
+  background: none;
+  border: none;
+  color: #475569;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  text-align: center;
+  transition: color 0.2s;
+}
+.otp-back-btn:hover { color: #94a3b8; }
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .modal-box { padding: 28px 20px 24px; }
+  .otp-input { width: 44px; height: 52px; font-size: 22px; }
+  .otp-boxes { gap: 7px; }
+}
