@@ -1,23 +1,9 @@
-/**
- * Navbar.jsx
- *
- * Two exported components:
- *   <LandingNavbar  onGetStarted={fn} />
- *   <DashboardNavbar user={user} onLogout={fn} currentPage={string} onNavigate={fn} />
- *
- * DashboardNavbar replaces the plain "S" circle with <UserDropdown>,
- * showing name, credits, generated-image count, and a logout button
- * that calls onLogout() → App.jsx clears user state → back to landing.
- */
-
 import { useState } from "react";
 import UserDropdown from "./UserDropdown.jsx";
 
-/* ─── Injected CSS ─────────────────────────────────────────────────────────── */
 const NAV_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* ── Shared nav shell ── */
 .nav-root{
   display:grid;
   grid-template-columns: 1fr auto 1fr;
@@ -30,7 +16,6 @@ const NAV_CSS = `
 .nav-center{ display:flex; align-items:center; gap:32px; justify-content:center; }
 .nav-right { display:flex; align-items:center; gap:14px; justify-content:flex-end; }
 
-/* ── Logo ── */
 .nav-logo{
   display:flex; align-items:center; gap:8px;
   font-weight:700; font-size:15px; color:#1a120b;
@@ -43,17 +28,21 @@ const NAV_CSS = `
   box-shadow:0 2px 8px rgba(208,90,40,0.3);
 }
 
-/* ── Nav links ── */
 .nav-link{
   font-size:14px; font-weight:500; color:#5a5048;
   cursor:pointer; transition:color 0.15s;
   background:none; border:none; font-family:'Inter',sans-serif;
-  padding:0;
+  padding:4px 2px; position:relative;
 }
 .nav-link:hover{ color:#1a120b; }
-.nav-link--active{ color:#d05a28; }
+.nav-link--active{
+  color:#d05a28; font-weight:600;
+}
+.nav-link--active::after{
+  content:''; position:absolute; bottom:-4px; left:0; right:0;
+  height:2px; background:#d05a28; border-radius:99px;
+}
 
-/* ── Back button (mode pages) ── */
 .nav-back-btn{
   display:flex; align-items:center; gap:6px; padding:6px 14px;
   border-radius:99px; border:1.5px solid #d6d0c8; background:#fff;
@@ -63,7 +52,6 @@ const NAV_CSS = `
 }
 .nav-back-btn:hover{ background:#f5f3f0; color:#1a120b; }
 
-/* ── CTA button (landing) ── */
 .nav-cta-btn{
   padding:8px 22px; border-radius:99px; border:none;
   background:linear-gradient(135deg,#d05a28,#e8824a);
@@ -73,7 +61,6 @@ const NAV_CSS = `
 }
 .nav-cta-btn:hover{ opacity:0.88; }
 
-/* ── Theme toggle icon ── */
 .nav-theme-icon{
   cursor:pointer; color:#5a5048;
   display:flex; align-items:center; transition:color 0.15s;
@@ -90,7 +77,6 @@ function injectNavCSS() {
   }
 }
 
-/* ── Icons ── */
 const LogoIcon = () => (
   <svg width={17} height={17} viewBox="0 0 24 24" fill="white">
     <path d="M12 2L13.09 8.26L19 6L14.74 10.26L21 12L14.74 13.74L19 18L13.09 15.74L12 22L10.91 15.74L5 18L9.26 13.74L3 12L9.26 10.26L5 6L10.91 8.26L12 2Z"/>
@@ -104,19 +90,35 @@ const BackIcon = () => (
 const SunIcon = () => (
   <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="12" cy="12" r="5"/>
-    <line x1="12" y1="1" x2="12" y2="3"/>  <line x1="12" y1="21" x2="12" y2="23"/>
-    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-    <line x1="1" y1="12" x2="3" y2="12"/>  <line x1="21" y1="12" x2="23" y2="12"/>
-    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    <line x1="12" y1="1" x2="12" y2="3"/>
+    <line x1="12" y1="21" x2="12" y2="23"/>
+    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+    <line x1="1" y1="12" x2="3" y2="12"/>
+    <line x1="21" y1="12" x2="23" y2="12"/>
+    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
   </svg>
 );
 
 const NAV_LINKS = ["Modes", "Gallery", "Pricing", "Docs"];
 
-/* ════════════════════════════════════════════════════════════════════════════
-   LandingNavbar  (unauthenticated)
-   ════════════════════════════════════════════════════════════════════════════ */
-export function LandingNavbar({ onGetStarted }) {
+/* page name → nav link label mapping */
+const PAGE_TO_LINK = {
+  "mode-picker":   "Modes",
+  "gallery":       "Gallery",
+  "pricing":       "Pricing",
+  "docs":          "Docs",
+  "text-to-image": "Modes",
+  "image-to-image":"Modes",
+  "inpainting":    "Modes",
+  "enhancement":   "Modes",
+};
+
+/* ════════════════════════════════════════════════════
+   LandingNavbar
+   ════════════════════════════════════════════════════ */
+export function LandingNavbar({ onGetStarted, onNavLink }) {
   injectNavCSS();
   return (
     <nav className="nav-root">
@@ -129,7 +131,13 @@ export function LandingNavbar({ onGetStarted }) {
 
       <div className="nav-center">
         {NAV_LINKS.map(l => (
-          <button key={l} className="nav-link">{l}</button>
+          <button
+            key={l}
+            className="nav-link"
+            onClick={() => onNavLink?.(l)}
+          >
+            {l}
+          </button>
         ))}
       </div>
 
@@ -141,14 +149,14 @@ export function LandingNavbar({ onGetStarted }) {
   );
 }
 
-/* ════════════════════════════════════════════════════════════════════════════
-   DashboardNavbar  (authenticated — mode picker + sub-pages)
-   ════════════════════════════════════════════════════════════════════════════ */
-export function DashboardNavbar({ user, onLogout, currentPage, onNavigate, onBack }) {
+/* ════════════════════════════════════════════════════
+   DashboardNavbar
+   ════════════════════════════════════════════════════ */
+export function DashboardNavbar({ user, onLogout, currentPage, onNavigate, onNavLink, onBack }) {
   injectNavCSS();
 
-  /* Show a back button on sub-pages (anything that isn't the mode picker) */
-  const isSubPage = currentPage && currentPage !== "mode-picker";
+  const isSubPage    = currentPage && !["mode-picker","gallery","pricing","docs"].includes(currentPage);
+  const activeLink   = PAGE_TO_LINK[currentPage] || "";
 
   return (
     <nav className="nav-root">
@@ -166,18 +174,22 @@ export function DashboardNavbar({ user, onLogout, currentPage, onNavigate, onBac
 
       <div className="nav-center">
         {NAV_LINKS.map(l => (
-          <button key={l} className="nav-link">{l}</button>
+          <button
+            key={l}
+            className={`nav-link${activeLink === l ? " nav-link--active" : ""}`}
+            onClick={() => onNavLink?.(l)}
+          >
+            {l}
+          </button>
         ))}
       </div>
 
       <div className="nav-right">
         <span className="nav-theme-icon"><SunIcon /></span>
-        {/* ── User dropdown replaces the plain avatar circle ── */}
         <UserDropdown user={user} onLogout={onLogout} />
       </div>
     </nav>
   );
 }
 
-/* Default export is the Dashboard variant for convenience */
 export default DashboardNavbar;
