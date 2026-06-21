@@ -36,6 +36,7 @@ function generateOTP() {
 
 const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || '10');
 
+// ─── Email builder for account verification ───────────────────────────────────
 function buildOTPEmail(otp, name = 'there') {
   const appName = process.env.APP_NAME || 'ImageGen';
   const html = `
@@ -75,6 +76,50 @@ function buildOTPEmail(otp, name = 'there') {
   return { html, text };
 }
 
+// ─── Email builder for password reset ────────────────────────────────────────
+function buildPasswordResetEmail(otp, name = 'there') {
+  const appName = process.env.APP_NAME || 'ImageGen';
+  const html = `
+<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<style>
+  body{margin:0;padding:0;background:#0f0f13;font-family:'Segoe UI',Arial,sans-serif}
+  .wrap{max-width:480px;margin:40px auto;background:#1a1a24;border-radius:16px;overflow:hidden}
+  .head{background:linear-gradient(135deg,#e85d3a,#c0392b);padding:32px 40px;text-align:center}
+  .head h1{margin:0;color:#fff;font-size:24px;font-weight:700}
+  .head p{margin:6px 0 0;color:rgba(255,255,255,.75);font-size:14px}
+  .body{padding:36px 40px}
+  .msg{color:#e2e8f0;font-size:15px;margin:0 0 20px}
+  .box{background:#0f0f18;border:2px solid #e85d3a;border-radius:12px;text-align:center;padding:24px;margin:24px 0}
+  .lbl{color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:1.5px;margin:0 0 12px}
+  .code{font-size:42px;font-weight:800;color:#fb8c6a;letter-spacing:12px;margin:0;font-family:'Courier New',monospace}
+  .exp{color:#64748b;font-size:13px;margin:16px 0 0}
+  .warn{background:#1e1206;border:1px solid #7a3010;border-radius:8px;padding:12px 16px;margin:20px 0 0}
+  .warn p{color:#f59e0b;font-size:13px;margin:0;line-height:1.5}
+  .note{color:#64748b;font-size:13px;line-height:1.6;margin:16px 0 0}
+  .foot{border-top:1px solid #2d2d3d;padding:20px 40px;text-align:center}
+  .foot p{color:#475569;font-size:12px;margin:0}
+</style></head><body>
+<div class="wrap">
+  <div class="head"><h1>🔑 ${appName}</h1><p>Password Reset Request</p></div>
+  <div class="body">
+    <p class="msg">Hi ${name},</p>
+    <p class="msg" style="color:#94a3b8;font-size:14px;margin-top:-10px">We received a request to reset your password. Use the code below to proceed.</p>
+    <div class="box">
+      <p class="lbl">Your password reset code</p>
+      <p class="code">${otp}</p>
+      <p class="exp">Expires in ${OTP_EXPIRY_MINUTES} minutes</p>
+    </div>
+    <div class="warn"><p>⚠️ If you didn't request a password reset, your account may be at risk. Please secure your account immediately.</p></div>
+    <p class="note">This code can only be used once. Do not share it with anyone.</p>
+  </div>
+  <div class="foot"><p>© ${new Date().getFullYear()} ${appName} · Automated message, do not reply.</p></div>
+</div>
+</body></html>`;
+  const text = `Hi ${name},\n\nYour ${appName} password reset code is: ${otp}\n\nExpires in ${OTP_EXPIRY_MINUTES} minutes.\n\nIf you didn't request this, please secure your account immediately.`;
+  return { html, text };
+}
+
+// ─── Send verification OTP ────────────────────────────────────────────────────
 export async function sendOTPEmail(toEmail, toName) {
   const otp = generateOTP();
   const transport = await getTransporter();
@@ -91,6 +136,27 @@ export async function sendOTPEmail(toEmail, toName) {
 
   const previewURL = nodemailer.getTestMessageUrl(info);
   if (previewURL) console.log(`[EmailService] Preview: ${previewURL}`);
+
+  return otp;
+}
+
+// ─── Send password reset OTP ──────────────────────────────────────────────────
+export async function sendPasswordResetEmail(toEmail, toName) {
+  const otp = generateOTP();
+  const transport = await getTransporter();
+  const { html, text } = buildPasswordResetEmail(otp, toName);
+  const appName = process.env.APP_NAME || 'ImageGen';
+
+  const info = await transport.sendMail({
+    from: `"${appName}" <${process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@imagegen.ai'}>`,
+    to: toEmail,
+    subject: `${otp} is your ${appName} password reset code`,
+    text,
+    html,
+  });
+
+  const previewURL = nodemailer.getTestMessageUrl(info);
+  if (previewURL) console.log(`[EmailService] Password reset preview: ${previewURL}`);
 
   return otp;
 }

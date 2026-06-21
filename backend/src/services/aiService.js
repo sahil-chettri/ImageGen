@@ -104,39 +104,39 @@ async function inpaintWithStability({ imageFile, maskFile, prompt, negativePromp
 }
 
 /* ── Stability AI: single upscale pass (internal helper) ────────────────── */
-/**
- * Runs ONE creative upscale pass via Stability AI v2beta.
- * Used directly for 2× and 4×, and called twice for 8× (chained).
- *
- * Endpoint : POST https://api.stability.ai/v2beta/stable-image/upscale/creative
- * Flow     : async — submit job → poll every 3 s → download when ready
- * Cost     : 25 Stability platform credits per call
- *
- * @param {string}  apiKey
- * @param {string}  imagePath   - absolute path to source image on disk
- * @param {string}  originalname
- * @param {number}  [creativity=0.35]  - 0–1, how much new detail to invent
- * @param {string}  [suffix]    - appended to saved filename for traceability
- * @returns {{ filename: string, arrayBuffer: ArrayBuffer }}
- */
 async function runOneUpscalePass(apiKey, imagePath, originalname, creativity = 0.35, suffix = '') {
   let imageBuffer = fs.readFileSync(imagePath);
 
-  // Stability AI hard limit: 10 MiB payload — compress if needed
-  const MAX_BYTES = 8 * 1024 * 1024; // 8 MB safe threshold
-  if (imageBuffer.byteLength > MAX_BYTES) {
-    console.log(`[Stability] Image is ${(imageBuffer.byteLength / 1024 / 1024).toFixed(1)} MB — compressing before upload...`);
-    try {
-      const sharp = (await import('sharp')).default;
+  const MAX_BYTES  = 8 * 1024 * 1024;
+  const MAX_PIXELS = 1_048_576;
+
+  try {
+    const sharp = (await import('sharp')).default;
+    const meta  = await sharp(imageBuffer).metadata();
+    const totalPixels = (meta.width || 0) * (meta.height || 0);
+
+    const needsPixelResize = totalPixels > MAX_PIXELS;
+    const needsSizeResize  = imageBuffer.byteLength > MAX_BYTES;
+
+    if (needsPixelResize || needsSizeResize) {
+      if (needsPixelResize) {
+        console.log(`[Stability] Image is ${meta.width}×${meta.height} (${totalPixels.toLocaleString()} px) — exceeds 1,048,576 px limit. Resizing…`);
+      }
+      if (needsSizeResize) {
+        console.log(`[Stability] Image is ${(imageBuffer.byteLength / 1024 / 1024).toFixed(1)} MB — exceeds 8 MB limit. Compressing…`);
+      }
+
       imageBuffer = await sharp(imageBuffer)
-        .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 90 })
+        .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: false })
+        .jpeg({ quality: 88 })
         .toBuffer();
-      console.log(`[Stability] Compressed to ${(imageBuffer.byteLength / 1024 / 1024).toFixed(1)} MB`);
-    } catch (sharpErr) {
-      console.warn('[Stability] sharp not available:', sharpErr.message);
-      throw new Error('Image is too large for Stability AI (>8 MB). Run: npm install sharp');
+
+      const newMeta = await sharp(imageBuffer).metadata();
+      console.log(`[Stability] Resized to ${newMeta.width}×${newMeta.height}, ${(imageBuffer.byteLength / 1024).toFixed(0)} KB`);
     }
+  } catch (sharpErr) {
+    console.warn('[Stability] sharp not available — cannot validate/resize image:', sharpErr.message);
+    throw new Error('sharp is required for image enhancement. Run: npm install sharp');
   }
 
   const ext      = path.extname(originalname || imagePath).toLowerCase();
@@ -156,10 +156,7 @@ async function runOneUpscalePass(apiKey, imagePath, originalname, creativity = 0
     'https://api.stability.ai/v2beta/stable-image/upscale/creative',
     {
       method:  'POST',
-      headers: {
-        Authorization: 'Bearer ' + apiKey,
-        Accept:        'application/json',
-      },
+      headers: { Authorization: 'Bearer ' + apiKey, Accept: 'application/json' },
       body: formData,
     }
   );
@@ -173,7 +170,6 @@ async function runOneUpscalePass(apiKey, imagePath, originalname, creativity = 0
   if (!id) throw new Error('Stability creative upscale did not return a job ID');
   console.log('[Stability] Job ID:', id, '— polling…');
 
-  // Poll for up to 180 s (8× needs two passes so give each pass more headroom)
   const pollUrl = 'https://api.stability.ai/v2beta/stable-image/upscale/creative/result/' + id;
   const deadline = Date.now() + 180_000;
 
@@ -181,23 +177,16 @@ async function runOneUpscalePass(apiKey, imagePath, originalname, creativity = 0
     await new Promise(r => setTimeout(r, 3000));
 
     const pollRes = await fetch(pollUrl, {
-      headers: {
-        Authorization: 'Bearer ' + apiKey,
-        Accept:        'image/*',
-      },
+      headers: { Authorization: 'Bearer ' + apiKey, Accept: 'image/*' },
     });
 
-    if (pollRes.status === 202) {
-      console.log('[Stability] Still processing…');
-      continue;
-    }
+    if (pollRes.status === 202) { console.log('[Stability] Still processing…'); continue; }
 
     if (!pollRes.ok) {
       const errText = await pollRes.text();
       throw new Error('Stability poll error ' + pollRes.status + ': ' + errText);
     }
 
-    // 200 — image ready
     const arrayBuffer = await pollRes.arrayBuffer();
     const filename    = `enhanced-stability${suffix}-` + Date.now() + '.png';
     fs.writeFileSync(path.join(generatedDir, filename), Buffer.from(arrayBuffer));
@@ -209,22 +198,6 @@ async function runOneUpscalePass(apiKey, imagePath, originalname, creativity = 0
 }
 
 /* ── Stability AI: image enhancement / upscale ──────────────────────────── */
-/**
- * Public enhancement function supporting 2×, 4×, and 8× upscaling.
- *
- *  2× → 1 pass, creativity 0.30  → ~1080p HD
- *  4× → 1 pass, creativity 0.35  → ~2K / 2048px
- *  8× → 2 chained passes (4× then 2×), creativity 0.45 / 0.30 → true ~8K
- *
- * The 8× pipeline:
- *   Pass 1: source image → 4× upscale (creativity 0.45 for maximum detail recovery)
- *   Pass 2: 4× result   → 2× upscale (creativity 0.30 to refine without over-generating)
- *   Result: ~8× total resolution increase
- *
- * @param {object} params
- * @param {{ path: string, originalname?: string }} params.imageFile
- * @param {number} [params.scaleFactor=4]   — 2 | 4 | 8
- */
 async function enhanceWithStability({ imageFile, scaleFactor = 4 }) {
   const STABILITY_API_KEY = process.env.STABILITY_API_KEY;
   if (!STABILITY_API_KEY) throw new Error('STABILITY_API_KEY is not set in .env');
@@ -232,145 +205,91 @@ async function enhanceWithStability({ imageFile, scaleFactor = 4 }) {
   const scale = Number(scaleFactor) || 4;
   console.log(`[Stability] enhanceWithStability | scale: ${scale}×`);
 
-  /* ── 8× : two-pass chained upscale ─────────────────────────────────── */
   if (scale >= 8) {
-    console.log('[Stability] 8K mode: running Pass 1 (4× creative, creativity=0.45)…');
-
-    // Pass 1: 4× with higher creativity to recover maximum detail from source
-    const pass1 = await runOneUpscalePass(
-      STABILITY_API_KEY,
-      imageFile.path,
-      imageFile.originalname || imageFile.path,
-      0.45,
-      '-8k-pass1'
-    );
-
-    console.log('[Stability] 8K mode: running Pass 2 (2× refinement, creativity=0.30)…');
-
-    // Pass 2: another upscale pass on the 4× result to push to ~8K
+    const pass1 = await runOneUpscalePass(STABILITY_API_KEY, imageFile.path, imageFile.originalname || imageFile.path, 0.45, '-8k-pass1');
     const pass1Path = path.join(generatedDir, pass1.filename);
-    const pass2 = await runOneUpscalePass(
-      STABILITY_API_KEY,
-      pass1Path,
-      pass1.filename,
-      0.30,
-      '-8k-pass2'
-    );
-
-    // Clean up the intermediate pass-1 file to save disk space
+    const pass2 = await runOneUpscalePass(STABILITY_API_KEY, pass1Path, pass1.filename, 0.30, '-8k-pass2');
     try { fs.unlinkSync(pass1Path); } catch { /* non-fatal */ }
-
-    console.log('[Stability] 8K two-pass complete:', pass2.filename);
-    return {
-      imageUrl: BASE_URL + '/generated/' + pass2.filename,
-      provider: 'stability-enhance-8k',
-      width:    7680,
-      height:   4320,
-    };
+    return { imageUrl: BASE_URL + '/generated/' + pass2.filename, provider: 'stability-enhance-8k', width: 7680, height: 4320 };
   }
 
-  /* ── 4× or 2× : single pass ────────────────────────────────────────── */
-  // Higher creativity for 4× to generate more fine detail
   const creativity = scale >= 4 ? 0.35 : 0.30;
-  console.log(`[Stability] Single-pass ${scale}× (creativity=${creativity})…`);
-
-  const pass = await runOneUpscalePass(
-    STABILITY_API_KEY,
-    imageFile.path,
-    imageFile.originalname || imageFile.path,
-    creativity,
-    scale >= 4 ? '-4x' : '-2x'
-  );
-
-  const outputDim = scale >= 4 ? 4096 : 2048;
-  return {
-    imageUrl: BASE_URL + '/generated/' + pass.filename,
-    provider: 'stability-enhance-creative',
-    width:    outputDim,
-    height:   outputDim,
-  };
+  const pass       = await runOneUpscalePass(STABILITY_API_KEY, imageFile.path, imageFile.originalname || imageFile.path, creativity, scale >= 4 ? '-4x' : '-2x');
+  const outputDim  = scale >= 4 ? 4096 : 2048;
+  return { imageUrl: BASE_URL + '/generated/' + pass.filename, provider: 'stability-enhance-creative', width: outputDim, height: outputDim };
 }
 
-/* ── Replicate (Real-ESRGAN): image enhancement fallback ────────────────── */
-/**
- * Fallback HD upscaler using Replicate's Real-ESRGAN model.
- * Supports 2× and 4× (Replicate model does not support 8× in one call;
- * for 8× we chain two calls automatically).
- *
- * Set REPLICATE_API_KEY in your .env to enable this fallback.
- */
-async function enhanceWithReplicate({ imageFile, scaleFactor = 4 }) {
-  const REPLICATE_API_KEY = process.env.REPLICATE_API_KEY;
-  if (!REPLICATE_API_KEY) throw new Error('REPLICATE_API_KEY is not set in .env');
+/* ── ModelsLab: free ESRGAN upscaling ───────────────────────────────────── */
+async function enhanceWithModelsLab({ imageFile, scaleFactor = 4 }) {
+  const API_KEY = process.env.MODELSLAB_API_KEY;
+  if (!API_KEY) throw new Error('MODELSLAB_API_KEY not set in .env');
 
-  const scale = Number(scaleFactor) || 4;
+  const imageBuffer = imageFile.buffer
+    ? imageFile.buffer
+    : fs.readFileSync(imageFile.path);
 
-  // Replicate Real-ESRGAN max is 4× per call; for 8× we chain 4×→2×
-  const firstScale  = scale >= 8 ? 4 : scale;
-  const needSecond  = scale >= 8;
+  const mimeType = imageFile.mimetype || 'image/png';
+  const form     = new FormData();
+  form.append('key',  API_KEY);
+  form.append('file', new Blob([imageBuffer], { type: mimeType }), 'image.png');
 
-  console.log(`[Replicate] Enhancing image (${firstScale}× Real-ESRGAN)…`);
+  console.log('[ModelsLab] Uploading image…');
+  const uploadRes  = await fetch('https://modelslab.com/api/v1/realtime/upload', {
+    method: 'POST', body: form,
+  });
+  const uploadData = await uploadRes.json();
+  console.log('[ModelsLab] Upload response:', JSON.stringify(uploadData));
 
-  async function replicateCall(imageBuffer, upscale) {
-    const base64  = imageBuffer.toString('base64');
-    const dataUri = `data:image/png;base64,${base64}`;
+  const imageUrl = uploadData?.link;
+  if (!imageUrl) throw new Error('ModelsLab upload failed: ' + JSON.stringify(uploadData));
 
-    const createRes = await fetch('https://api.replicate.com/v1/predictions', {
-      method:  'POST',
-      headers: {
-        Authorization:  `Token ${REPLICATE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        version: '42fed1c4974146d4d2414e2be2c5277c7fcf05fcc3a73abf41610695738c1d7b',
-        input:   { image: dataUri, scale: upscale, face_enhance: false },
-      }),
-    });
+  console.log(`[ModelsLab] Running ESRGAN ${scaleFactor}×…`);
+  const enhRes  = await fetch('https://modelslab.com/api/v6/image_editing/super_resolution', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      key:          API_KEY,
+      url:          imageUrl,
+      scale:        scaleFactor,
+      face_enhance: false,
+    }),
+  });
+  const enhData = await enhRes.json();
+  console.log('[ModelsLab] Enhance response:', JSON.stringify(enhData));
 
-    if (!createRes.ok) throw new Error(`Replicate create error ${createRes.status}: ${await createRes.text()}`);
+  let outputUrl = enhData?.output?.[0];
 
-    const prediction = await createRes.json();
-    const pollUrl    = prediction.urls?.get;
-    if (!pollUrl) throw new Error('Replicate did not return a polling URL');
-
+  // Async job — poll until done
+  if (!outputUrl && enhData?.id) {
+    console.log('[ModelsLab] Async job, polling id:', enhData.id);
     const deadline = Date.now() + 90_000;
     while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, 2000));
-      const pollRes = await fetch(pollUrl, { headers: { Authorization: `Token ${REPLICATE_API_KEY}` } });
-      const result  = await pollRes.json();
-
-      if (result.status === 'succeeded') {
-        const imgResponse = await fetch(result.output);
-        if (!imgResponse.ok) throw new Error('Failed to download enhanced image from Replicate');
-        return Buffer.from(await imgResponse.arrayBuffer());
-      }
-
-      if (result.status === 'failed') throw new Error(`Replicate prediction failed: ${result.error}`);
-      console.log(`[Replicate] Status: ${result.status}…`);
+      await new Promise(r => setTimeout(r, 3000));
+      const pollRes  = await fetch('https://modelslab.com/api/v6/image_editing/fetch/' + enhData.id, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ key: API_KEY }),
+      });
+      const pollData = await pollRes.json();
+      console.log('[ModelsLab] Poll status:', pollData?.status);
+      if (pollData?.status === 'success') { outputUrl = pollData.output?.[0]; break; }
+      if (pollData?.status === 'error')   throw new Error('ModelsLab job failed: ' + JSON.stringify(pollData));
     }
-
-    throw new Error('Replicate enhancement timed out after 90 seconds');
   }
 
-  // First pass
-  let buffer = fs.readFileSync(imageFile.path);
-  buffer = await replicateCall(buffer, firstScale);
+  if (!outputUrl) throw new Error('ModelsLab returned no output: ' + JSON.stringify(enhData));
 
-  // Second pass for 8×
-  if (needSecond) {
-    console.log('[Replicate] 8K mode: running second pass (2×)…');
-    buffer = await replicateCall(buffer, 2);
-  }
-
-  const filename = `enhanced-replicate-${scale}x-${Date.now()}.png`;
+  const imgRes   = await fetch(outputUrl);
+  const buffer   = Buffer.from(await imgRes.arrayBuffer());
+  const filename = `enhanced-modelslab-${scaleFactor}x-${Date.now()}.png`;
   fs.writeFileSync(path.join(generatedDir, filename), buffer);
-  console.log(`[Replicate] Enhanced image saved: ${filename}`);
+  console.log(`[ModelsLab] Saved: ${filename}`);
 
   return {
     imageUrl: `${BASE_URL}/generated/${filename}`,
-    provider: scale >= 8 ? 'replicate-esrgan-8k' : 'replicate-esrgan',
-    width:    scale >= 8 ? 7680 : scale >= 4 ? 4096 : 2048,
-    height:   scale >= 8 ? 4320 : scale >= 4 ? 4096 : 2048,
+    provider: 'modelslab-esrgan',
+    width:    scaleFactor >= 4 ? 4096 : 2048,
+    height:   scaleFactor >= 4 ? 4096 : 2048,
   };
 }
 
@@ -379,9 +298,15 @@ async function enhanceWithMock({ imageFile, scaleFactor = 4 }) {
   const scale = Number(scaleFactor) || 4;
   console.log(`[Mock] Simulating image enhancement (${scale}×)…`);
   await new Promise(r => setTimeout(r, scale >= 8 ? 3000 : 1500));
-  const filename = path.basename(imageFile.path);
+
+  const filename = imageFile.path
+    ? path.basename(imageFile.path)
+    : `mock-enhance-${Date.now()}.png`;
+
   return {
-    imageUrl: `${BASE_URL}/uploads/${filename}`,
+    imageUrl: imageFile.path
+      ? `${BASE_URL}/uploads/${filename}`
+      : `https://picsum.photos/2048/2048?random=${Date.now()}`,
     provider: scale >= 8 ? 'mock-enhance-8k' : 'mock-enhance',
     width:    scale >= 8 ? 7680 : scale >= 4 ? 4096 : 2048,
     height:   scale >= 8 ? 4320 : scale >= 4 ? 4096 : 2048,
@@ -488,63 +413,23 @@ export async function transformImage(params) {
 export async function inpaintImage(params) {
   const provider = process.env.AI_PROVIDER || 'pollinations';
   console.log(`[AI] Inpainting with provider: ${provider}`);
-
   if (provider === 'stability') return inpaintWithStability(params);
   if (provider === 'mock')      return generateWithMock(params);
   return inpaintWithPollinationsFallback(params);
 }
 
 /**
- * Enhance / upscale an image to HD, 2K, or 8K.
- *
- * Scale factor guide:
- *   2  → single pass → ~1080p HD   (1 credit)
- *   4  → single pass → ~2K / 4096px (1 credit)
- *   8  → TWO chained passes → ~8K / 7680px (2 credits, ~60–80 s)
- *
- * Provider priority:
- *   stability  → Stability AI creative upscaler (uses STABILITY_API_KEY)
- *   other      → Replicate Real-ESRGAN          (needs REPLICATE_API_KEY)
- *   mock       → returns original image unchanged (for development)
- *
- * If Stability is set but fails (e.g. quota), auto-falls back to Replicate.
- *
- * @param {object} params
- * @param {{ path: string, originalname?: string }} params.imageFile
- * @param {number} [params.scaleFactor=4]   — 2 | 4 | 8
+ * Enhance / upscale an image using ModelsLab free ESRGAN.
+ * Falls back to mock if MODELSLAB_API_KEY is not set.
  */
 export async function enhanceImage(params) {
-  const provider    = process.env.AI_PROVIDER || 'pollinations';
   const scaleFactor = Number(params.scaleFactor) || 4;
+  console.log(`[AI] Enhancement | ModelsLab ESRGAN | Scale: ${scaleFactor}×`);
 
-  console.log(`[AI] Enhancement | Provider: ${provider} | Scale: ${scaleFactor}×`);
-
-  if (provider === 'mock') {
-    return enhanceWithMock({ ...params, scaleFactor });
+  if (process.env.MODELSLAB_API_KEY) {
+    return enhanceWithModelsLab({ ...params, scaleFactor });
   }
 
-  if (provider === 'stability') {
-    try {
-      return await enhanceWithStability({ ...params, scaleFactor });
-    } catch (stabilityErr) {
-      console.warn('[AI] Stability enhance failed:', stabilityErr.message);
-
-      if (process.env.REPLICATE_API_KEY) {
-        console.log('[AI] Falling back to Replicate Real-ESRGAN…');
-        return enhanceWithReplicate({ ...params, scaleFactor });
-      }
-
-      throw stabilityErr;
-    }
-  }
-
-  // pollinations or any other provider — use Replicate
-  if (process.env.REPLICATE_API_KEY) {
-    return enhanceWithReplicate({ ...params, scaleFactor });
-  }
-
-  throw new Error(
-    'Image enhancement requires either AI_PROVIDER=stability (with STABILITY_API_KEY) ' +
-    'or REPLICATE_API_KEY set in your .env file.'
-  );
+  console.warn('[AI] No MODELSLAB_API_KEY — using mock');
+  return enhanceWithMock({ ...params, scaleFactor });
 }

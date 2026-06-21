@@ -84,7 +84,7 @@ export default function Landing({ onGetStarted }) {
         }
 
         html { scroll-behavior: smooth; }
-        body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--ink); overflow-x: hidden; }
+        body { font-family: 'DM Sans', sans-serif; background: var(--cream) !important; color: var(--ink) !important; overflow-x: hidden; }
 
         /* NAV */
         .ig-nav {
@@ -117,14 +117,14 @@ export default function Landing({ onGetStarted }) {
           min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
         .ig-hero::before {
-          content: ''; position: fixed; inset: 0;
+          content: ''; position: absolute; inset: 0;
           background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
           pointer-events: none; z-index: 0; opacity: 0.5;
         }
         .ig-hero > * { position: relative; z-index: 1; }
 
         /* blobs */
-        .ig-blob { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.18; pointer-events: none; z-index: 0; }
+        .ig-blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.07; pointer-events: none; z-index: 0; }
         .ig-blob-1 { width: 400px; height: 400px; background: #e85d3a; top: 10%; left: -8%; animation: ig-blobFloat 12s ease-in-out infinite; }
         .ig-blob-2 { width: 320px; height: 320px; background: #f2a65a; top: 30%; right: -5%; animation: ig-blobFloat 14s ease-in-out infinite 2s; }
         .ig-blob-3 { width: 250px; height: 250px; background: #3d6b4f; bottom: 15%; left: 30%; animation: ig-blobFloat 10s ease-in-out infinite 4s; }

@@ -1,13 +1,10 @@
-import { Router } from 'express';
-import { protect } from '../middleware/auth.js';
-import { getGallery, getGalleryItem, deleteGalleryItem } from '../controllers/galleryController.js';
+import express from "express";
+import { getGallery, deleteGeneration } from "../controllers/galleryController.js";
+import { protect } from "../middleware/auth.js";
 
-const router = Router();
+const router = express.Router();
 
-router.use(protect);
-
-router.get('/',       getGallery);
-router.get('/:id',    getGalleryItem);
-router.delete('/:id', deleteGalleryItem);
+router.get(   "/",    protect, getGallery);
+router.delete("/:id", protect, deleteGeneration);
 
 export default router;

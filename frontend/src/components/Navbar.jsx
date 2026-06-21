@@ -66,6 +66,50 @@ const NAV_CSS = `
   display:flex; align-items:center; transition:color 0.15s;
 }
 .nav-theme-icon:hover{ color:#1a120b; }
+
+/* ── Tablet: tighten spacing ── */
+@media (max-width: 1023px) {
+  .nav-root {
+    padding: 0 20px;
+    height: 56px;
+  }
+  .nav-center { gap: 20px; }
+  .nav-link   { font-size: 13px; }
+  .nav-right  { gap: 10px; }
+  .nav-logo   { font-size: 14px; }
+  .nav-logo-icon { width: 28px; height: 28px; }
+}
+
+/* ── Mobile: hide center links (tab bar takes over) ── */
+@media (max-width: 767px) {
+  .nav-root {
+    grid-template-columns: 1fr 1fr;
+    padding: 0 16px;
+    height: 52px;
+  }
+  .nav-center {
+    display: none;
+  }
+  .nav-right {
+    gap: 8px;
+  }
+  .nav-cta-btn {
+    padding: 7px 16px;
+    font-size: 12.5px;
+  }
+  .nav-back-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+  .nav-logo {
+    font-size: 14px;
+  }
+  .nav-logo-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+}
 `;
 
 function injectNavCSS() {
@@ -155,8 +199,8 @@ export function LandingNavbar({ onGetStarted, onNavLink }) {
 export function DashboardNavbar({ user, onLogout, currentPage, onNavigate, onNavLink, onBack }) {
   injectNavCSS();
 
-  const isSubPage    = currentPage && !["mode-picker","gallery","pricing","docs"].includes(currentPage);
-  const activeLink   = PAGE_TO_LINK[currentPage] || "";
+  const isSubPage  = currentPage && !["mode-picker","gallery","pricing","docs"].includes(currentPage);
+  const activeLink = PAGE_TO_LINK[currentPage] || "";
 
   return (
     <nav className="nav-root">

@@ -261,7 +261,7 @@ export default function TextToImage({ onBack }) {
       {showRag && (
         <PromptOptimizer
           initialPrompt={prompt}
-          onAccept={(p) => { setPrompt(p); setShowRag(false); }}
+          onUsePrompt={(p) => { setPrompt(p); setShowRag(false); }}
           onClose={() => setShowRag(false)}
         />
       )}

@@ -1,0 +1,1356 @@
+/* ============================================================
+   ImageGen — Responsive Styles
+   Mobile-first breakpoints layered ON TOP of existing styles.
+   Desktop (≥1024px) is NEVER touched here.
+   
+   Breakpoints:
+     mobile-sm  : 0–479px      (small phones: SE, mini)
+     mobile     : 480–767px    (standard phones)
+     tablet     : 768–1023px   (iPads, large phones landscape)
+   ============================================================ */
+
+/* ----------------------------------------------------------
+   0. RESET HELPERS — Box-sizing safety, no layout breakage
+   ---------------------------------------------------------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* ----------------------------------------------------------
+   1. NAVBAR
+   ---------------------------------------------------------- */
+
+/* ── Tablet (768–1023px) ── */
+@media (max-width: 1023px) {
+  /* Shrink logo text slightly */
+  .navbar-logo span,
+  [class*="navbar"] [class*="logo"] span {
+    font-size: 17px !important;
+  }
+
+  /* Compress nav link gap */
+  .navbar-links,
+  [class*="navbar"] nav,
+  [class*="nav-links"] {
+    gap: 20px !important;
+  }
+
+  .navbar-links a,
+  .navbar-links button,
+  [class*="nav-links"] a,
+  [class*="nav-links"] button {
+    font-size: 13px !important;
+  }
+
+  /* Right-side actions */
+  [class*="navbar"] [class*="actions"],
+  [class*="navbar-right"],
+  [class*="nav-right"] {
+    gap: 10px !important;
+  }
+}
+
+/* ── Mobile (0–767px): collapse to hamburger-free compact bar ── */
+@media (max-width: 767px) {
+  /* Navbar container */
+  [class*="navbar"],
+  [class*="DashboardNavbar"],
+  [class*="LandingNavbar"],
+  header[style*="position: fixed"],
+  header[style*="position:fixed"] {
+    padding: 0 16px !important;
+    height: 56px !important;
+    min-height: 56px !important;
+  }
+
+  /* Hide center nav links on mobile — replaced by bottom tab bar */
+  .navbar-links,
+  [class*="nav-links"],
+  [class*="navbar"] nav {
+    display: none !important;
+  }
+
+  /* Logo stays */
+  .navbar-logo,
+  [class*="navbar"] [class*="logo"] {
+    font-size: 16px !important;
+  }
+
+  /* Shrink user dropdown / CTA */
+  [class*="UserDropdown"],
+  [class*="user-dropdown"] {
+    transform: scale(0.9);
+    transform-origin: right center;
+  }
+
+  /* Back button on sub-pages */
+  [class*="back-btn"],
+  [class*="backBtn"] {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   2. MOBILE BOTTOM TAB BAR
+   Recreates nav for mobile without touching desktop at all.
+   Injected via <style> tag in responsive-tabs.jsx patch.
+   ---------------------------------------------------------- */
+@media (max-width: 767px) {
+  /* Push page content above the tab bar */
+  #root > div,
+  [class*="App"],
+  [class*="app-shell"],
+  body {
+    padding-bottom: 64px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   3. MODE PICKER PAGE (ModePicker.jsx)
+   ---------------------------------------------------------- */
+
+/* ── Tablet ── */
+@media (max-width: 1023px) {
+  [class*="ModePicker"],
+  [class*="mode-picker"],
+  [class*="modePicker"] {
+    padding: 32px 24px !important;
+  }
+
+  /* Badge pill */
+  [class*="ModePicker"] [class*="badge"],
+  [class*="mode-picker"] [class*="badge"] {
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+  }
+
+  /* Headline */
+  [class*="ModePicker"] h1,
+  [class*="mode-picker"] h1 {
+    font-size: clamp(28px, 5vw, 40px) !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* Subtitle */
+  [class*="ModePicker"] p,
+  [class*="mode-picker"] > p {
+    font-size: 14px !important;
+  }
+
+  /* 2-col grid on tablet, full on mobile */
+  [class*="ModePicker"] [class*="grid"],
+  [class*="mode-picker"] [class*="grid"],
+  [class*="modes-grid"],
+  [class*="modeGrid"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  [class*="mode-card"],
+  [class*="modeCard"] {
+    padding: 24px !important;
+  }
+}
+
+/* ── Mobile ── */
+@media (max-width: 767px) {
+  [class*="ModePicker"],
+  [class*="mode-picker"],
+  [class*="modePicker"] {
+    padding: 24px 16px 80px !important; /* bottom for tab bar */
+  }
+
+  [class*="ModePicker"] h1,
+  [class*="mode-picker"] h1 {
+    font-size: clamp(22px, 7vw, 30px) !important;
+    line-height: 1.2 !important;
+    text-align: center !important;
+  }
+
+  [class*="ModePicker"] p,
+  [class*="mode-picker"] > p {
+    text-align: center !important;
+    font-size: 13px !important;
+  }
+
+  /* Stack to 1-column on narrow phones */
+  [class*="ModePicker"] [class*="grid"],
+  [class*="mode-picker"] [class*="grid"],
+  [class*="modes-grid"],
+  [class*="modeGrid"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  [class*="mode-card"],
+  [class*="modeCard"] {
+    padding: 20px !important;
+    border-radius: 16px !important;
+  }
+
+  /* Icon */
+  [class*="mode-card"] [class*="icon"],
+  [class*="modeCard"] [class*="icon"],
+  [class*="mode-icon"] {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 12px !important;
+    font-size: 18px !important;
+  }
+
+  [class*="mode-card"] h3,
+  [class*="modeCard"] h3 {
+    font-size: 16px !important;
+    margin-top: 12px !important;
+  }
+
+  [class*="mode-card"] p,
+  [class*="modeCard"] p {
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+    margin-bottom: 12px !important;
+  }
+
+  [class*="mode-card"] a,
+  [class*="modeCard"] a,
+  [class*="mode-link"],
+  [class*="modeLink"] {
+    font-size: 13px !important;
+  }
+
+  /* "Most Popular" badge offset */
+  [class*="most-popular"],
+  [class*="mostPopular"],
+  [class*="popular-badge"] {
+    top: -10px !important;
+    left: 16px !important;
+  }
+}
+
+/* ── Small phones (≤479px): 1 col tighter ── */
+@media (max-width: 479px) {
+  [class*="mode-card"],
+  [class*="modeCard"] {
+    padding: 16px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   4. TEXT TO IMAGE PAGE
+   ---------------------------------------------------------- */
+
+/* ── Tablet ── */
+@media (max-width: 1023px) {
+  [class*="TextToImage"],
+  [class*="text-to-image"] {
+    padding: 24px !important;
+  }
+
+  /* Convert side-by-side into stacked column */
+  [class*="TextToImage"] [class*="layout"],
+  [class*="TextToImage"] [class*="container"],
+  [class*="text-to-image"] [class*="layout"],
+  [class*="text-to-image"] [class*="container"],
+  [class*="two-col"],
+  [class*="twoCol"],
+  [class*="split-layout"],
+  [class*="splitLayout"] {
+    flex-direction: column !important;
+    gap: 20px !important;
+  }
+
+  /* Left panel full width */
+  [class*="TextToImage"] [class*="left"],
+  [class*="TextToImage"] [class*="panel"]:first-child,
+  [class*="text-to-image"] [class*="left"],
+  [class*="control-panel"],
+  [class*="controlPanel"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+  }
+
+  /* Right panel full width */
+  [class*="TextToImage"] [class*="right"],
+  [class*="TextToImage"] [class*="panel"]:last-child,
+  [class*="text-to-image"] [class*="right"],
+  [class*="output-panel"],
+  [class*="outputPanel"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+  }
+}
+
+/* ── Mobile ── */
+@media (max-width: 767px) {
+  [class*="TextToImage"],
+  [class*="text-to-image"] {
+    padding: 16px 16px 80px !important;
+  }
+
+  /* Style chips: horizontal scroll, no wrap */
+  [class*="style-chips"],
+  [class*="styleChips"],
+  [class*="chip-row"],
+  [class*="chipRow"] {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    padding-bottom: 8px !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  [class*="style-chips"]::-webkit-scrollbar,
+  [class*="styleChips"]::-webkit-scrollbar,
+  [class*="chip-row"]::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  [class*="style-chip"],
+  [class*="styleChip"],
+  [class*="chip"] {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+  }
+
+  /* Aspect ratio row */
+  [class*="aspect-ratio"],
+  [class*="aspectRatio"],
+  [class*="ratio-row"],
+  [class*="ratioRow"] {
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+
+  [class*="ratio-btn"],
+  [class*="ratioBtn"],
+  [class*="aspect-btn"],
+  [class*="aspectBtn"] {
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+  }
+
+  /* Text areas */
+  [class*="TextToImage"] textarea,
+  [class*="text-to-image"] textarea {
+    font-size: 14px !important;
+    min-height: 80px !important;
+  }
+
+  /* Generate button full width */
+  [class*="TextToImage"] [class*="generate-btn"],
+  [class*="TextToImage"] [class*="generateBtn"],
+  [class*="TextToImage"] button[type="submit"],
+  [class*="TextToImage"] .btn-primary,
+  [class*="text-to-image"] .btn-primary {
+    width: 100% !important;
+    padding: 14px !important;
+    font-size: 15px !important;
+  }
+
+  /* Output image */
+  [class*="OutputBox"] img,
+  [class*="outputBox"] img,
+  [class*="output-image"],
+  [class*="outputImage"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    border-radius: 12px !important;
+  }
+
+  /* Download button */
+  [class*="download-btn"],
+  [class*="downloadBtn"] {
+    width: 100% !important;
+    justify-content: center !important;
+    margin-top: 12px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   5. IMAGE TO IMAGE PAGE
+   ---------------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  [class*="ImageToImage"],
+  [class*="image-to-image"] {
+    padding: 24px !important;
+  }
+
+  /* Stack layout */
+  [class*="ImageToImage"] [class*="layout"],
+  [class*="image-to-image"] [class*="layout"] {
+    flex-direction: column !important;
+    gap: 20px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  [class*="ImageToImage"],
+  [class*="image-to-image"] {
+    padding: 16px 16px 80px !important;
+  }
+
+  /* Upload box */
+  [class*="upload-box"],
+  [class*="uploadBox"],
+  [class*="drop-zone"],
+  [class*="dropZone"] {
+    min-height: 140px !important;
+    padding: 20px !important;
+  }
+
+  [class*="upload-box"] p,
+  [class*="uploadBox"] p,
+  [class*="drop-zone"] p {
+    font-size: 13px !important;
+  }
+
+  /* Before/After comparison panel */
+  [class*="before-after"],
+  [class*="beforeAfter"],
+  [class*="comparison"] {
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  [class*="before-after"] img,
+  [class*="beforeAfter"] img,
+  [class*="comparison"] img {
+    width: 100% !important;
+    border-radius: 10px !important;
+  }
+
+  /* Aspect ratio compact buttons */
+  [class*="ratio-btn"],
+  [class*="ratioBtn"] {
+    width: 56px !important;
+    font-size: 11px !important;
+    padding: 5px 8px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   6. INPAINTING PAGE
+   ---------------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  [class*="Inpainting"],
+  [class*="inpainting"] {
+    padding: 24px !important;
+  }
+
+  [class*="Inpainting"] [class*="layout"],
+  [class*="inpainting"] [class*="layout"] {
+    flex-direction: column !important;
+    gap: 20px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  [class*="Inpainting"],
+  [class*="inpainting"] {
+    padding: 16px 16px 80px !important;
+  }
+
+  /* Canvas should fill width */
+  [class*="Inpainting"] canvas,
+  [class*="inpainting"] canvas {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    touch-action: none; /* allow drawing touch */
+  }
+
+  /* Brush controls */
+  [class*="brush-controls"],
+  [class*="brushControls"],
+  [class*="canvas-controls"],
+  [class*="canvasControls"] {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  [class*="brush-size"],
+  [class*="brushSize"] {
+    width: 100% !important;
+  }
+
+  /* Undo / Clear buttons */
+  [class*="canvas-actions"],
+  [class*="canvasActions"] {
+    gap: 8px !important;
+  }
+
+  [class*="canvas-actions"] button,
+  [class*="canvasActions"] button {
+    flex: 1 !important;
+    font-size: 13px !important;
+    padding: 8px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   7. IMAGE ENHANCEMENT PAGE
+   ---------------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  [class*="ImageEnhancement"],
+  [class*="image-enhancement"] {
+    padding: 24px !important;
+  }
+
+  [class*="ImageEnhancement"] [class*="layout"],
+  [class*="image-enhancement"] [class*="layout"] {
+    flex-direction: column !important;
+    gap: 20px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  [class*="ImageEnhancement"],
+  [class*="image-enhancement"] {
+    padding: 16px 16px 80px !important;
+  }
+
+  /* Scale selector buttons */
+  [class*="scale-options"],
+  [class*="scaleOptions"],
+  [class*="scale-row"],
+  [class*="scaleRow"] {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  [class*="scale-btn"],
+  [class*="scaleBtn"],
+  [class*="scale-option"],
+  [class*="scaleOption"] {
+    padding: 10px 8px !important;
+    font-size: 12px !important;
+    text-align: center !important;
+  }
+
+  /* Preview box: 480×480 → full-width on mobile */
+  [class*="preview-box"],
+  [class*="previewBox"],
+  [class*="ImageEnhancement"] [class*="preview"] {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 200px !important;
+    max-height: 320px !important;
+  }
+
+  /* 8K warning banner */
+  [class*="warning-banner"],
+  [class*="warningBanner"],
+  [class*="8k-warning"],
+  [class*="ultraWarning"] {
+    font-size: 12px !important;
+    padding: 10px 12px !important;
+    border-radius: 10px !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Provider badge */
+  [class*="provider-badge"],
+  [class*="providerBadge"] {
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   8. GALLERY PAGE
+   ---------------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  [class*="Gallery"],
+  [class*="gallery"] {
+    padding: 24px !important;
+  }
+
+  /* Filter + search row */
+  [class*="gallery-controls"],
+  [class*="galleryControls"],
+  [class*="gallery-toolbar"],
+  [class*="galleryToolbar"] {
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+  }
+
+  [class*="gallery-search"],
+  [class*="gallerySearch"],
+  [class*="search-input"] {
+    flex: 1 1 200px !important;
+    min-width: 0 !important;
+  }
+
+  /* Grid: 3 cols on tablet */
+  [class*="gallery-grid"],
+  [class*="galleryGrid"] {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 12px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  [class*="Gallery"],
+  [class*="gallery"] {
+    padding: 16px 16px 80px !important;
+  }
+
+  [class*="Gallery"] h1,
+  [class*="gallery"] h1 {
+    font-size: 22px !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* Search full width */
+  [class*="gallery-search"],
+  [class*="gallerySearch"],
+  [class*="search-bar"],
+  [class*="searchBar"] {
+    width: 100% !important;
+  }
+
+  /* Filter chips: horizontal scroll */
+  [class*="gallery-filters"],
+  [class*="galleryFilters"],
+  [class*="filter-row"],
+  [class*="filterRow"] {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    padding-bottom: 6px !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  [class*="gallery-filters"]::-webkit-scrollbar,
+  [class*="galleryFilters"]::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  [class*="filter-chip"],
+  [class*="filterChip"],
+  [class*="filter-btn"],
+  [class*="filterBtn"] {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+  }
+
+  /* Grid: 2 cols on mobile */
+  [class*="gallery-grid"],
+  [class*="galleryGrid"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  /* Gallery card */
+  [class*="gallery-card"],
+  [class*="galleryCard"] {
+    border-radius: 12px !important;
+  }
+
+  [class*="gallery-card"] img,
+  [class*="galleryCard"] img {
+    border-radius: 12px 12px 0 0 !important;
+  }
+
+  [class*="gallery-card"] [class*="overlay"],
+  [class*="galleryCard"] [class*="overlay"] {
+    border-radius: 12px !important;
+  }
+
+  /* Pagination */
+  [class*="pagination"],
+  [class*="gallery-pagination"] {
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+  }
+
+  [class*="page-btn"],
+  [class*="pageBtn"] {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* ── Small phones: 1-column gallery ── */
+@media (max-width: 360px) {
+  [class*="gallery-grid"],
+  [class*="galleryGrid"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Lightbox modal */
+@media (max-width: 767px) {
+  [class*="lightbox"],
+  [class*="Lightbox"],
+  [class*="lightbox-overlay"] {
+    padding: 0 !important;
+  }
+
+  [class*="lightbox-content"],
+  [class*="lightboxContent"] {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important;
+    flex-direction: column !important;
+  }
+
+  [class*="lightbox-image"],
+  [class*="lightboxImage"],
+  [class*="lightbox-content"] img {
+    max-height: 55dvh !important;
+    width: 100% !important;
+    object-fit: contain !important;
+  }
+
+  [class*="lightbox-meta"],
+  [class*="lightboxMeta"],
+  [class*="lightbox-info"] {
+    padding: 16px !important;
+    overflow-y: auto !important;
+  }
+
+  [class*="lightbox-close"],
+  [class*="lightboxClose"] {
+    top: 12px !important;
+    right: 12px !important;
+    z-index: 10 !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   9. PRICING PAGE
+   ---------------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  [class*="Pricing"],
+  [class*="pricing"] {
+    padding: 40px 24px !important;
+  }
+
+  /* 3-col cards → 1-col or 2-col */
+  [class*="pricing-grid"],
+  [class*="pricingGrid"],
+  [class*="plans-grid"],
+  [class*="plansGrid"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 20px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  [class*="Pricing"],
+  [class*="pricing"] {
+    padding: 24px 16px 80px !important;
+  }
+
+  [class*="Pricing"] h1,
+  [class*="pricing"] h1 {
+    font-size: clamp(22px, 7vw, 32px) !important;
+    text-align: center !important;
+  }
+
+  [class*="Pricing"] > p,
+  [class*="pricing"] > p {
+    text-align: center !important;
+    font-size: 14px !important;
+  }
+
+  /* Stack pricing cards */
+  [class*="pricing-grid"],
+  [class*="pricingGrid"],
+  [class*="plans-grid"],
+  [class*="plansGrid"] {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    max-width: 420px !important;
+    margin: 0 auto !important;
+  }
+
+  [class*="pricing-card"],
+  [class*="pricingCard"],
+  [class*="plan-card"],
+  [class*="planCard"] {
+    padding: 24px 20px !important;
+    border-radius: 20px !important;
+  }
+
+  /* Price number */
+  [class*="pricing-card"] [class*="price"],
+  [class*="pricingCard"] [class*="price"],
+  [class*="plan-price"],
+  [class*="planPrice"] {
+    font-size: 36px !important;
+  }
+
+  /* CTA button */
+  [class*="pricing-card"] button,
+  [class*="pricingCard"] button,
+  [class*="plan-card"] button {
+    width: 100% !important;
+    padding: 13px !important;
+    font-size: 14px !important;
+  }
+
+  /* Credit usage table */
+  [class*="credits-table"],
+  [class*="creditsTable"],
+  [class*="usage-table"],
+  [class*="usageTable"] {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 12px !important;
+  }
+
+  [class*="credits-table"] table,
+  [class*="creditsTable"] table,
+  [class*="usage-table"] table {
+    min-width: 420px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   10. DOCS PAGE
+   ---------------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  [class*="Docs"],
+  [class*="docs-page"],
+  [class*="docsPage"] {
+    padding: 24px !important;
+  }
+
+  /* Sidebar + content layout */
+  [class*="docs-layout"],
+  [class*="docsLayout"] {
+    flex-direction: column !important;
+    gap: 0 !important;
+  }
+
+  /* Sidebar: horizontal scroll on tablet */
+  [class*="docs-sidebar"],
+  [class*="docsSidebar"] {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    position: relative !important;
+    top: auto !important;
+    border-radius: 12px !important;
+    margin-bottom: 24px !important;
+    overflow-x: auto !important;
+  }
+
+  [class*="docs-sidebar"] [class*="nav"],
+  [class*="docsSidebar"] [class*="nav"] {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 4px !important;
+    padding: 8px !important;
+    scrollbar-width: none !important;
+  }
+
+  [class*="docs-sidebar"] [class*="nav"]::-webkit-scrollbar,
+  [class*="docsSidebar"] [class*="nav"]::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  [class*="docs-sidebar"] [class*="nav-item"],
+  [class*="docsSidebar"] [class*="navItem"],
+  [class*="docs-sidebar"] a,
+  [class*="docsSidebar"] a {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    font-size: 12px !important;
+    padding: 6px 14px !important;
+    border-left: none !important;
+    border-radius: 20px !important;
+    border: 1.5px solid transparent !important;
+  }
+
+  /* Active state: pill highlight instead of left border */
+  [class*="docs-sidebar"] [class*="active"],
+  [class*="docsSidebar"] [class*="active"] {
+    border-color: #E8572A !important;
+    background: rgba(232, 87, 42, 0.08) !important;
+    color: #E8572A !important;
+    border-left-width: 1.5px !important;
+  }
+
+  [class*="docs-content"],
+  [class*="docsContent"] {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 767px) {
+  [class*="Docs"],
+  [class*="docs-page"],
+  [class*="docsPage"] {
+    padding: 16px 16px 80px !important;
+  }
+
+  [class*="Docs"] h1,
+  [class*="docs-page"] h1 {
+    font-size: 22px !important;
+    margin-bottom: 16px !important;
+  }
+
+  [class*="docs-content"] h2,
+  [class*="docsContent"] h2 {
+    font-size: 18px !important;
+  }
+
+  [class*="docs-content"] h3,
+  [class*="docsContent"] h3 {
+    font-size: 15px !important;
+  }
+
+  [class*="docs-content"] p,
+  [class*="docsContent"] p,
+  [class*="docs-content"] li,
+  [class*="docsContent"] li {
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+  }
+
+  /* Code blocks: horizontal scroll */
+  [class*="docs-content"] pre,
+  [class*="docsContent"] pre,
+  [class*="code-block"],
+  [class*="codeBlock"] {
+    overflow-x: auto !important;
+    font-size: 12px !important;
+    padding: 14px !important;
+    border-radius: 10px !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Tables in docs */
+  [class*="docs-content"] table,
+  [class*="docsContent"] table {
+    font-size: 12px !important;
+    display: block !important;
+    overflow-x: auto !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   11. LANDING PAGE
+   ---------------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  [class*="Landing"],
+  [class*="landing"] {
+    padding: 0 24px !important;
+  }
+
+  [class*="Landing"] h1,
+  [class*="landing"] h1,
+  [class*="hero"] h1 {
+    font-size: clamp(32px, 6vw, 52px) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  [class*="Landing"],
+  [class*="landing"] {
+    padding: 0 16px !important;
+  }
+
+  [class*="hero"],
+  [class*="Landing"] [class*="hero"] {
+    padding: 80px 0 40px !important;
+    text-align: center !important;
+  }
+
+  [class*="Landing"] h1,
+  [class*="landing"] h1,
+  [class*="hero-title"],
+  [class*="heroTitle"] {
+    font-size: clamp(26px, 8vw, 40px) !important;
+    line-height: 1.15 !important;
+  }
+
+  [class*="Landing"] h2,
+  [class*="landing"] h2,
+  [class*="hero-subtitle"],
+  [class*="heroSubtitle"] {
+    font-size: 15px !important;
+    margin-bottom: 28px !important;
+  }
+
+  /* CTA buttons */
+  [class*="hero"] [class*="cta"],
+  [class*="hero"] [class*="btn"],
+  [class*="hero-cta"],
+  [class*="heroCta"] {
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: center !important;
+  }
+
+  [class*="hero"] [class*="cta"] button,
+  [class*="hero-cta"] button,
+  [class*="hero"] .btn-primary {
+    width: 100% !important;
+    max-width: 320px !important;
+    padding: 14px !important;
+    font-size: 15px !important;
+  }
+
+  /* Feature grid on landing */
+  [class*="features-grid"],
+  [class*="featuresGrid"],
+  [class*="Landing"] [class*="grid"] {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* Feature card */
+  [class*="feature-card"],
+  [class*="featureCard"] {
+    padding: 20px !important;
+    border-radius: 16px !important;
+  }
+
+  /* Gallery strip at bottom */
+  [class*="gallery-strip"],
+  [class*="galleryStrip"],
+  [class*="image-strip"],
+  [class*="imageStrip"] {
+    height: 100px !important;
+  }
+
+  [class*="gallery-strip"] img,
+  [class*="galleryStrip"] img,
+  [class*="image-strip"] img {
+    height: 100px !important;
+    min-width: 100px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   12. LOGIN MODAL
+   ---------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  /* Full-screen modal on mobile */
+  .modal-overlay,
+  [class*="modal-overlay"],
+  [class*="modalOverlay"] {
+    padding: 0 !important;
+    align-items: flex-end !important; /* slide up from bottom */
+  }
+
+  .modal-box,
+  [class*="modal-box"],
+  [class*="modalBox"],
+  [class*="modal-content"],
+  [class*="modalContent"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 90dvh !important;
+    border-radius: 24px 24px 0 0 !important;
+    overflow-y: auto !important;
+    padding: 24px 20px 32px !important;
+  }
+
+  /* Drag handle for bottom sheet */
+  .modal-box::before,
+  [class*="modal-box"]::before {
+    content: '' !important;
+    display: block !important;
+    width: 40px !important;
+    height: 4px !important;
+    background: rgba(0,0,0,0.15) !important;
+    border-radius: 2px !important;
+    margin: 0 auto 20px !important;
+  }
+
+  .modal-tabs,
+  [class*="modal-tabs"] {
+    gap: 0 !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+  }
+
+  .modal-tab,
+  [class*="modal-tab"] {
+    flex: 1 !important;
+    text-align: center !important;
+    font-size: 14px !important;
+    padding: 10px !important;
+  }
+
+  /* OTP boxes */
+  .otp-boxes,
+  [class*="otp-boxes"],
+  [class*="otpBoxes"] {
+    gap: 8px !important;
+    justify-content: center !important;
+  }
+
+  .otp-input,
+  [class*="otp-input"] {
+    width: 44px !important;
+    height: 52px !important;
+    font-size: 20px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Form inputs */
+  [class*="modal"] input[type="text"],
+  [class*="modal"] input[type="email"],
+  [class*="modal"] input[type="password"] {
+    font-size: 16px !important; /* prevents iOS zoom */
+    padding: 12px 14px !important;
+    border-radius: 10px !important;
+  }
+
+  /* Submit button */
+  [class*="modal"] .btn-primary,
+  [class*="modal"] button[type="submit"] {
+    width: 100% !important;
+    padding: 13px !important;
+    font-size: 15px !important;
+    margin-top: 8px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   13. PROMPT OPTIMIZER WIDGET
+   ---------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  [class*="PromptOptimizer"],
+  [class*="prompt-optimizer"],
+  [class*="promptOptimizer"] {
+    padding: 14px !important;
+    border-radius: 14px !important;
+  }
+
+  [class*="PromptOptimizer"] [class*="actions"],
+  [class*="prompt-optimizer"] [class*="actions"] {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  [class*="PromptOptimizer"] button,
+  [class*="prompt-optimizer"] button {
+    flex: 1 1 120px !important;
+    font-size: 12px !important;
+    padding: 7px 10px !important;
+  }
+
+  [class*="ollama-status"],
+  [class*="ollamaStatus"] {
+    font-size: 11px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   14. USER DROPDOWN
+   ---------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  [class*="UserDropdown"] [class*="dropdown"],
+  [class*="user-dropdown"] [class*="menu"],
+  [class*="userMenu"] {
+    right: 0 !important;
+    left: auto !important;
+    min-width: 200px !important;
+    top: 44px !important;
+  }
+
+  [class*="UserDropdown"] [class*="avatar"],
+  [class*="user-avatar"],
+  [class*="userAvatar"] {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   15. MOBILE BOTTOM TAB BAR (rendered via JS injection patch)
+   These styles are consumed by the MobileTabBar component.
+   ---------------------------------------------------------- */
+
+.imagegen-tab-bar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .imagegen-tab-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 999;
+    background: rgba(253, 250, 244, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(0, 0, 0, 0.07);
+    padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+    justify-content: space-around;
+    align-items: center;
+    height: auto;
+    min-height: 56px;
+  }
+
+  .imagegen-tab-bar__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 16px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+    border-radius: 12px;
+    transition: background 0.15s ease;
+    min-width: 56px;
+    flex: 1;
+  }
+
+  .imagegen-tab-bar__item:active {
+    background: rgba(232, 87, 42, 0.08);
+  }
+
+  .imagegen-tab-bar__icon {
+    font-size: 20px;
+    line-height: 1;
+    transition: transform 0.15s ease;
+  }
+
+  .imagegen-tab-bar__item--active .imagegen-tab-bar__icon {
+    transform: scale(1.12);
+  }
+
+  .imagegen-tab-bar__label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: #9a8f85;
+    font-family: 'DM Sans', 'Inter', sans-serif;
+    transition: color 0.15s ease;
+  }
+
+  .imagegen-tab-bar__item--active .imagegen-tab-bar__label {
+    color: #E8572A;
+    font-weight: 600;
+  }
+
+  /* Active dot indicator */
+  .imagegen-tab-bar__item--active::after {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #E8572A;
+    position: absolute;
+    bottom: 4px;
+  }
+
+  .imagegen-tab-bar__item {
+    position: relative;
+  }
+}
+
+/* ----------------------------------------------------------
+   16. GLOBAL UTILITY OVERRIDES FOR MOBILE
+   ---------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  /* Prevent body scroll when modal open */
+  body.modal-open {
+    overflow: hidden !important;
+    position: fixed !important;
+    width: 100% !important;
+  }
+
+  /* Smooth scroll for iOS */
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Tap targets: ensure 44px minimum */
+  button,
+  [role="button"],
+  a {
+    min-height: 36px;
+  }
+
+  /* Prevent input zoom on iOS (font-size < 16px triggers zoom) */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+
+  /* Section headings */
+  h1 { font-size: clamp(22px, 7vw, 32px) !important; }
+  h2 { font-size: clamp(18px, 5vw, 26px) !important; }
+  h3 { font-size: clamp(15px, 4vw, 20px) !important; }
+}
+
+/* ----------------------------------------------------------
+   17. SAFE AREA INSETS (iPhone notch / Dynamic Island)
+   ---------------------------------------------------------- */
+
+@supports (padding: max(0px)) {
+  @media (max-width: 767px) {
+    [class*="navbar"],
+    header {
+      padding-top: max(0px, env(safe-area-inset-top)) !important;
+    }
+
+    .imagegen-tab-bar {
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+    }
+  }
+}
+
+/* ----------------------------------------------------------
+   18. REDUCED MOTION
+   ---------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,59 +1,74 @@
-import pool from '../db.js';
+import pool from "../db.js";
 
-export async function getGallery(req, res) {
+/**
+ * GET /api/v1/gallery
+ * Returns all generations for the logged-in user, newest first.
+ */
+export async function getGallery(req, res, next) {
   try {
-    const page  = Math.max(1, parseInt(req.query.page  || '1'));
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '20')));
-    const type  = req.query.type;
+    const userId = req.user.id;
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.min(100, parseInt(req.query.limit) || 50);
     const offset = (page - 1) * limit;
 
-    const conditions = ['user_id = $1'];
-    const params     = [req.user.id];
+    const { rows } = await pool.query(
+      `SELECT
+         id,
+         user_id,
+         type,
+         prompt,
+         image_url,
+         style,
+         ratio,
+         provider,
+         created_at
+       FROM generations
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
 
-    if (type) {
-      params.push(type);
-      conditions.push(`type = $${params.length}`);
+    // Count total for pagination
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*) AS total FROM generations WHERE user_id = $1`,
+      [userId]
+    );
+    const total = parseInt(countRows[0]?.total || 0);
+
+    return res.json({
+      success: true,
+      generations: rows,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * DELETE /api/v1/gallery/:id
+ * Deletes a generation owned by the logged-in user.
+ */
+export async function deleteGeneration(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const { rowCount } = await pool.query(
+      `DELETE FROM generations WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    );
+
+    if (rowCount === 0) {
+      return res.status(404).json({ success: false, message: "Image not found." });
     }
 
-    const where = conditions.join(' AND ');
-
-    const [dataResult, countResult] = await Promise.all([
-      pool.query(
-        `SELECT * FROM generations WHERE ${where} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-        [...params, limit, offset]
-      ),
-      pool.query(`SELECT COUNT(*) FROM generations WHERE ${where}`, params),
-    ]);
-
-    const total = parseInt(countResult.rows[0].count);
-    res.json({ success: true, data: dataResult.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    return res.json({ success: true, message: "Image deleted." });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-}
-
-export async function getGalleryItem(req, res) {
-  try {
-    const { rows } = await pool.query(
-      'SELECT * FROM generations WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
-    if (!rows.length) return res.status(404).json({ success: false, message: 'Item not found' });
-    res.json({ success: true, generation: rows[0] });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-}
-
-export async function deleteGalleryItem(req, res) {
-  try {
-    const { rows } = await pool.query(
-      'DELETE FROM generations WHERE id = $1 AND user_id = $2 RETURNING id',
-      [req.params.id, req.user.id]
-    );
-    if (!rows.length) return res.status(404).json({ success: false, message: 'Item not found' });
-    res.json({ success: true, message: 'Generation deleted' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
+    next(err);
   }
 }

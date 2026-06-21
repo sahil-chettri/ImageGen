@@ -1,5 +1,4 @@
 // frontend/src/services/api.js
-// Replaces the original file — adds verifyOTP and resendOTP methods.
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 const TOKEN_KEY = 'imagegen_token';
@@ -41,7 +40,7 @@ async function request(path, options = {}) {
   return data;
 }
 
-// ─── Auth ─────────────────────────────────────────────────────────────────────
+// ─── API ──────────────────────────────────────────────────────────────────────
 export const api = {
   auth: {
     register: (body) =>
@@ -58,6 +57,17 @@ export const api = {
     resendOTP: (body) =>
       request('/auth/resend-otp', { method: 'POST', body: JSON.stringify(body) }),
 
+    /** Send a password-reset OTP to the given email */
+    forgotPassword: (email) =>
+      request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+
+    /** Verify the reset OTP and set a new password */
+    resetPassword: ({ email, otp, newPassword }) =>
+      request('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ email, otp, newPassword }),
+      }),
+
     getMe: () => request('/auth/me'),
 
     adminLogin: (body) =>
@@ -71,7 +81,6 @@ export const api = {
     image: (formData) =>
       request('/generate/image', { method: 'POST', body: formData }),
 
-    // ── FIX: was missing — caused "api.generate.inpaint is not a function" ──
     inpaint: ({ image, mask, prompt, negativePrompt = '', ratio = '1:1' }) => {
       const form = new FormData();
       form.append('image',          image);
@@ -80,6 +89,14 @@ export const api = {
       form.append('negativePrompt', negativePrompt);
       form.append('ratio',          ratio);
       return request('/generate/inpaint', { method: 'POST', body: form });
+    },
+
+    /** Image Enhancement — always routed through NVIDIA ESRGAN on the backend */
+    enhance: (imageFile, scaleFactor = 4) => {
+      const form = new FormData();
+      form.append('image',       imageFile);
+      form.append('scaleFactor', String(scaleFactor));
+      return request('/generate/enhance', { method: 'POST', body: form });
     },
 
     get: (id) => request(`/generate/${id}`),
